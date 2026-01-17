@@ -8,6 +8,9 @@ public class MusicPlayer {
 
     private static final MusicPlayer instance = new MusicPlayer();
 
+    public MusicPlayer() {
+    }
+
     public static MusicPlayer getInstance() {
         return instance;
     }

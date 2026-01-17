@@ -18,7 +18,7 @@ from android.graphics.drawable import GradientDrawable, ColorDrawable, LayerDraw
 from android.os import Build
 from android_utils import log, run_on_ui_thread
 from base_plugin import BasePlugin, MenuItemData, MenuItemType
-from client_utils import get_last_fragment
+from client_utils import get_last_fragment, run_on_queue
 from dalvik.system import InMemoryDexClassLoader
 from java.io import File
 from java.nio import ByteBuffer
@@ -47,7 +47,9 @@ __min_version__ = "11.12.0"
 
 MusicPlayer = None
 PLAYER_CLASS_NAME = "ru.hoprik.player.MusicPlayer"
-DEV_MODE = False
+DEX_URL = "https://github.com/hoprik/Extera-Plugins/raw/refs/heads/fullscreen_dex/classes.dex"
+DEX_FILE_NAME = "player.dex"
+DEV_MODE = True
 
 # ============ Colors ============
 COLORS = {
@@ -151,6 +153,14 @@ class PlayerPlugin(BasePlugin):
         self.action_bar = None
         self.stop_thread = False
 
+    @staticmethod
+    def dir():
+        dir = File(ApplicationLoader.applicationContext.getExternalCacheDir(), __id__)
+        if not dir.exists():
+            dir.mkdirs()
+        return dir
+
+
     @classmethod
     def get_dex_path(cls):
         dir = File(cls.dir(), __version__)
@@ -161,46 +171,64 @@ class PlayerPlugin(BasePlugin):
 
     def on_plugin_load(self):
         self.add_settings_menu_items()
+        run_on_queue(self.dex_load)
 
     def dex_load(self, then = None):
         global MusicPlayer, PLAYER_CLASS_NAME, DEV_MODE
+
         try:
             if DEV_MODE:
-                music_controller_class = self._init_lyrics_controller_class()
+                music_controller_class = self._init_music_player_class()
+                MusicPlayer = music_controller_class.getDeclaredMethod("getInstance").invoke(None)
             else:
                 if not MusicPlayer:
                     try:
                         music_controller_class = find_class(PLAYER_CLASS_NAME).getClass()
                     except:
-                        music_controller_class = self._init_lyrics_controller_class()
+                        music_controller_class = self._init_music_player_class()
 
                     MusicPlayer = music_controller_class.getDeclaredMethod("getInstance").invoke(None)
-        except:
-            pass
+            if then is not None:
+                then()
+        except Exception as e:
+            MusicPlayer = None
+            self.log(f"Failed to load LyricsController: {e}")
 
-    def _init_lyrics_controller_class(self):
-        """ Загружает .dex и создает экземпляр LyricsController
 
-        Returns:
-            LyricsController: загруженный LyricsController
+    def _init_music_player_class(self):
+        """ Loads .dex and creates MusicPlayer instance
+
+        If DEV_MODE is True, it forcibly downloads the .dex file, ignoring cache.
         """
-        if os.path.exists(self.get_dex_path()) and (time.time() - os.path.getmtime(self.get_dex_path()) < 60 * 60 * 24):
+        global DEV_MODE
+
+        dex_path = self.get_dex_path()
+        is_cache_valid = os.path.exists(dex_path) and (time.time() - os.path.getmtime(dex_path) < 60 * 60 * 24)
+
+        # Logic: If NOT dev mode AND cache is valid -> Use Cache.
+        # Otherwise (Dev mode OR Cache invalid) -> Download.
+        if not DEV_MODE and is_cache_valid:
             dex_bytes = self._load_dex_from_cache()
         else:
-            self.log(".dex not found or too old, downloading...")
+            reason = "DEV_MODE is active" if DEV_MODE else "cache expired or missing"
+            self.log(f".dex update required ({reason}), downloading...")
             try:
                 response = requests.get(DEX_URL)
                 response.raise_for_status()
                 dex_bytes = response.content
-                with open(self.get_dex_path(), "wb") as file:
+                with open(dex_path, "wb") as file:
                     file.write(dex_bytes)
             except Exception as e:
                 self.log(f"Failed to download .dex: {e}, reading from cache...")
-                self._load_dex_from_cache()
+                # If download fails, try fallback to cache even in dev mode
+                if os.path.exists(dex_path):
+                    dex_bytes = self._load_dex_from_cache()
+                else:
+                    raise e
 
         app_class_loader = ApplicationLoader.applicationContext.getClassLoader()
         dex_loader = InMemoryDexClassLoader(ByteBuffer.wrap(dex_bytes), app_class_loader)
-        return dex_loader.loadClass(CONTROLLER_CLASS_NAME)
+        return dex_loader.loadClass(PLAYER_CLASS_NAME)
 
     def _load_dex_from_cache(self) -> bytes:
         with open(self.get_dex_path(), "rb") as file:
