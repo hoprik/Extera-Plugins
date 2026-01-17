@@ -45,6 +45,7 @@ __version__ = "1.0"
 __icon__ = "rottenprince_by_FStikBot/0"
 __min_version__ = "11.12.0"
 
+
 MusicPlayer = None
 PLAYER_CLASS_NAME = "ru.hoprik.player.MusicPlayer"
 DEX_URL = "https://github.com/hoprik/Extera-Plugins/raw/refs/heads/fullscreen_dex/classes.dex"
@@ -177,6 +178,7 @@ class PlayerPlugin(BasePlugin):
         global MusicPlayer, PLAYER_CLASS_NAME, DEV_MODE
 
         try:
+            # Force download if DEV_MODE is on
             if DEV_MODE:
                 music_controller_class = self._init_music_player_class()
                 MusicPlayer = music_controller_class.getDeclaredMethod("getInstance").invoke(None)
@@ -192,7 +194,8 @@ class PlayerPlugin(BasePlugin):
                 then()
         except Exception as e:
             MusicPlayer = None
-            self.log(f"Failed to load LyricsController: {e}")
+            # FIX THE LOG NAME HERE
+            self.log(f"Failed to load MusicPlayer: {e}")
 
 
     def _init_music_player_class(self):
