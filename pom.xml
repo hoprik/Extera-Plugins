@@ -68,7 +68,7 @@
                                 <argument>libs/d8.jar</argument>
                                 <argument>com.android.tools.r8.D8</argument>
                                 <argument>--output</argument>
-                                <argument>${project.basedir}</argument>  <!-- 👈 Корень проекта -->
+                                <argument>${project.basedir}</argument>
                                 <argument>target/${project.artifactId}-${project.version}.jar</argument>
                             </arguments>
                         </configuration>

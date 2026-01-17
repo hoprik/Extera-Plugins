@@ -1,3 +1,12 @@
+"""
+
+Автор - @hoprik
+Дизайн - @canickk
+Идея с dex - @PESSDES_Plugins
+
+Сурсы Плеера - https://github.com/hoprik/Extera-Plugins/tree/fullscreen_dex
+
+"""
 
 from android.widget import TextView, LinearLayout, ImageView, FrameLayout, Toast, SeekBar
 from android.view import View, ViewGroup, Gravity
@@ -10,6 +19,9 @@ from android.os import Build
 from android_utils import log, run_on_ui_thread
 from base_plugin import BasePlugin, MenuItemData, MenuItemType
 from client_utils import get_last_fragment
+from dalvik.system import InMemoryDexClassLoader
+from java.io import File
+from java.nio import ByteBuffer
 from ui.settings import Header, Input, Divider, Switch, Selector, Text, EditText
 from com.exteragram.messenger.plugins import PluginsController
 from com.exteragram.messenger.plugins.ui import PluginSettingsActivity
@@ -18,10 +30,12 @@ from org.telegram.ui.Components import BackupImageView, RLottieImageView, PlayPa
 from org.telegram.ui.ActionBar import ActionBarMenuItem, ActionBar
 from org.telegram.tgnet import TLRPC
 from android.text import TextUtils
-from ui.bulletin import BulletinHelper
+from hook_utils import find_class
 import time
 import threading
 from java import dynamic_proxy
+import os
+import requests
 
 __id__ = "fullscreen_music_player"
 __name__ = "Music Player"
@@ -31,10 +45,12 @@ __version__ = "1.0"
 __icon__ = "rottenprince_by_FStikBot/0"
 __min_version__ = "11.12.0"
 
-CONF_W = "notch_width"
-CONF_H = "notch_height"
-CONF_T = "notch_top"
+MusicPlayer = None
+PLAYER_CLASS_NAME = "ru.hoprik.player.MusicPlayer"
+DEV_MODE = False
 
+DEX_URL = "https://github.com/hoprik/Extera-Plugins/raw/fullscreen_dex/ru/hoprik/player/classes.dex" # Замените на ваш актуальный URL
+DEX_FILE_NAME = "player_logic.dex"
 
 # ============ Colors ============
 COLORS = {
@@ -140,6 +156,51 @@ class PlayerPlugin(BasePlugin):
 
     def on_plugin_load(self):
         self.add_settings_menu_items()
+
+    def get_plugin_dir(self):
+        """Получение пути к папке плагина в кэше"""
+        path = File(ApplicationLoader.applicationContext.getExternalCacheDir(), __id__)
+        if not path.exists():
+            path.mkdirs()
+        return path
+
+    def get_dex_path(self):
+        """Путь к локальному файлу .dex"""
+        return File(self.get_plugin_dir(), DEX_FILE_NAME).getAbsolutePath()
+
+    def load_dex(self):
+        """Загрузка DEX с поддержкой DEV_MODE"""
+        global MusicPlayer
+        dex_path = self.get_dex_path()
+
+        try:
+            # Если включен DEV_MODE, удаляем старый файл перед проверкой
+            if DEV_MODE and os.path.exists(dex_path):
+                log(f"[{__id__}] DEV_MODE is ON: Deleting old DEX for force update...")
+                os.remove(dex_path)
+
+            # Скачивание, если файла нет (или он был удален выше)
+            if not os.path.exists(dex_path):
+                log(f"[{__id__}] Downloading DEX from {DEX_URL}...")
+                response = requests.get(DEX_URL, timeout=10)
+                response.raise_for_status()
+                with open(dex_path, "wb") as f:
+                    f.write(response.content)
+                log(f"[{__id__}] DEX downloaded successfully.")
+
+            # Чтение байтов и загрузка в память
+            with open(dex_path, "rb") as f:
+                dex_bytes = f.read()
+
+            app_class_loader = ApplicationLoader.applicationContext.getClassLoader()
+            dex_loader = InMemoryDexClassLoader(ByteBuffer.wrap(dex_bytes), app_class_loader)
+
+            # Поиск основного класса
+            self.dex_class = dex_loader.loadClass(PLAYER_CLASS_NAME)
+            log(f"[{__id__}] Class {PLAYER_CLASS_NAME} loaded from DEX.")
+
+        except Exception as e:
+            self.log_error("DEX system error", e)
 
     def create_settings(self):
         return [
