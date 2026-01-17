@@ -175,63 +175,91 @@ class PlayerPlugin(BasePlugin):
         run_on_queue(self.dex_load)
 
     def dex_load(self, then = None):
-        global MusicPlayer, PLAYER_CLASS_NAME, DEV_MODE
-
+        global MusicPlayer, PLAYER_CLASS_NAME
         try:
-            # Force download if DEV_MODE is on
-            if DEV_MODE:
+            if not MusicPlayer:
+                # try:
+                #     # music_controller_class = find_class(PLAYER_CLASS_NAME)
+                # except:
+                    # If not found, load from dex
+                self.log("MusicPlayer class not found, loading DEX...")
                 music_controller_class = self._init_music_player_class()
-                MusicPlayer = music_controller_class.getDeclaredMethod("getInstance").invoke(None)
-            else:
-                if not MusicPlayer:
-                    try:
-                        music_controller_class = find_class(PLAYER_CLASS_NAME).getClass()
-                    except:
-                        music_controller_class = self._init_music_player_class()
+                print("Методы класса MusicPlayer:")
+                for method in music_controller_class.getDeclaredMethods():
+                    print(method)
+                constructors = music_controller_class.getDeclaredConstructors()
+                print(f"Found {len(constructors)} constructors")
 
-                    MusicPlayer = music_controller_class.getDeclaredMethod("getInstance").invoke(None)
-            if then is not None:
-                then()
+                for constructor in constructors:
+                    print(f"\nConstructor: {constructor}")
+                    params = constructor.getParameterTypes()
+                    print(f"Parameters: {[p.getName() for p in params]}")
+
+                    # Пробуем вызвать конструктор без параметров
+                    if len(params) == 0:
+                        try:
+                            constructor.setAccessible(True)
+                            instance = constructor.newInstance()
+                            print(f"✓ Created instance via constructor: {instance}")
+                            return instance
+                        except Exception as e:
+                            print(f"✗ Constructor failed: {e}")
+                    else:
+                        # Пробуем с дефолтными значениями
+                        try:
+                            constructor.setAccessible(True)
+                            # Создаем массив параметров с дефолтными значениями
+                            args = []
+                            for param in params:
+                                param_name = param.getName()
+                                if param_name == "android.content.Context":
+                                    args.append(None)
+                                elif param_name == "java.lang.String":
+                                    args.append("default")
+                                elif param_name == "int":
+                                    args.append(0)
+                                elif param_name == "boolean":
+                                    args.append(False)
+                                else:
+                                    args.append(None)
+
+                            instance = constructor.newInstance(*args)
+                            print(f"✓ Created instance with parameters: {instance}")
+                            return instance
+                        except Exception as e:
+                            print(f"✗ Constructor with params failed: {e}")
+
+                return None
+
         except Exception as e:
-            MusicPlayer = None
-            # FIX THE LOG NAME HERE
-            self.log(f"Failed to load MusicPlayer: {e}")
-
+            print(f"Error: {e}")
+            return None
 
     def _init_music_player_class(self):
-        """ Loads .dex and creates MusicPlayer instance
-
-        If DEV_MODE is True, it forcibly downloads the .dex file, ignoring cache.
-        """
-        global DEV_MODE
-
         dex_path = self.get_dex_path()
-        is_cache_valid = os.path.exists(dex_path) and (time.time() - os.path.getmtime(dex_path) < 60 * 60 * 24)
 
-        # Logic: If NOT dev mode AND cache is valid -> Use Cache.
-        # Otherwise (Dev mode OR Cache invalid) -> Download.
-        if not DEV_MODE and is_cache_valid:
-            dex_bytes = self._load_dex_from_cache()
-        else:
-            reason = "DEV_MODE is active" if DEV_MODE else "cache expired or missing"
-            self.log(f".dex update required ({reason}), downloading...")
-            try:
-                response = requests.get(DEX_URL)
-                response.raise_for_status()
-                dex_bytes = response.content
-                with open(dex_path, "wb") as file:
-                    file.write(dex_bytes)
-            except Exception as e:
-                self.log(f"Failed to download .dex: {e}, reading from cache...")
-                # If download fails, try fallback to cache even in dev mode
-                if os.path.exists(dex_path):
-                    dex_bytes = self._load_dex_from_cache()
-                else:
-                    raise e
+        # # Check if dex file exists and is less than 24 hours old
+        # if os.path.exists(dex_path) and (time.time() - os.path.getmtime(dex_path) < 60 * 60 * 24):
+        #     dex_bytes = self._load_dex_from_cache()
+        # else:
+        self.log(".dex not found or too old, downloading...")
+        try:
+            response = requests.get(DEX_URL)
+            response.raise_for_status()
+            dex_bytes = response.content
+            with open(dex_path, "wb") as file:
+                file.write(dex_bytes)
+        except Exception as e:
+            self.log(f"Failed to download .dex: {e}")
+            # If download fails, try to use cache anyway
+            if os.path.exists(dex_path):
+                dex_bytes = self._load_dex_from_cache()
+            else:
+                raise e
 
         app_class_loader = ApplicationLoader.applicationContext.getClassLoader()
         dex_loader = InMemoryDexClassLoader(ByteBuffer.wrap(dex_bytes), app_class_loader)
-        return dex_loader.loadClass(PLAYER_CLASS_NAME)
+        return dex_loader.loadClass(PLAYER_CLASS_NAME, True)
 
     def _load_dex_from_cache(self) -> bytes:
         with open(self.get_dex_path(), "rb") as file:
