@@ -33,9 +33,9 @@ from android.text import TextUtils
 from hook_utils import find_class
 import time
 import threading
-from java import dynamic_proxy
 import os
 import requests
+from java import dynamic_proxy
 
 __id__ = "fullscreen_music_player"
 __name__ = "Music Player"
@@ -48,9 +48,6 @@ __min_version__ = "11.12.0"
 MusicPlayer = None
 PLAYER_CLASS_NAME = "ru.hoprik.player.MusicPlayer"
 DEV_MODE = False
-
-DEX_URL = "https://github.com/hoprik/Extera-Plugins/raw/fullscreen_dex/ru/hoprik/player/classes.dex" # Замените на ваш актуальный URL
-DEX_FILE_NAME = "player_logic.dex"
 
 # ============ Colors ============
 COLORS = {
@@ -154,53 +151,61 @@ class PlayerPlugin(BasePlugin):
         self.action_bar = None
         self.stop_thread = False
 
+    @classmethod
+    def get_dex_path(cls):
+        dir = File(cls.dir(), __version__)
+        if not dir.exists():
+            dir.mkdirs()
+        return File(dir, DEX_FILE_NAME).getAbsolutePath()
+
+
     def on_plugin_load(self):
         self.add_settings_menu_items()
 
-    def get_plugin_dir(self):
-        """Получение пути к папке плагина в кэше"""
-        path = File(ApplicationLoader.applicationContext.getExternalCacheDir(), __id__)
-        if not path.exists():
-            path.mkdirs()
-        return path
-
-    def get_dex_path(self):
-        """Путь к локальному файлу .dex"""
-        return File(self.get_plugin_dir(), DEX_FILE_NAME).getAbsolutePath()
-
-    def load_dex(self):
-        """Загрузка DEX с поддержкой DEV_MODE"""
-        global MusicPlayer
-        dex_path = self.get_dex_path()
-
+    def dex_load(self, then = None):
+        global MusicPlayer, PLAYER_CLASS_NAME, DEV_MODE
         try:
-            # Если включен DEV_MODE, удаляем старый файл перед проверкой
-            if DEV_MODE and os.path.exists(dex_path):
-                log(f"[{__id__}] DEV_MODE is ON: Deleting old DEX for force update...")
-                os.remove(dex_path)
+            if DEV_MODE:
+                music_controller_class = self._init_lyrics_controller_class()
+            else:
+                if not MusicPlayer:
+                    try:
+                        music_controller_class = find_class(PLAYER_CLASS_NAME).getClass()
+                    except:
+                        music_controller_class = self._init_lyrics_controller_class()
 
-            # Скачивание, если файла нет (или он был удален выше)
-            if not os.path.exists(dex_path):
-                log(f"[{__id__}] Downloading DEX from {DEX_URL}...")
-                response = requests.get(DEX_URL, timeout=10)
+                    MusicPlayer = music_controller_class.getDeclaredMethod("getInstance").invoke(None)
+        except:
+            pass
+
+    def _init_lyrics_controller_class(self):
+        """ Загружает .dex и создает экземпляр LyricsController
+
+        Returns:
+            LyricsController: загруженный LyricsController
+        """
+        if os.path.exists(self.get_dex_path()) and (time.time() - os.path.getmtime(self.get_dex_path()) < 60 * 60 * 24):
+            dex_bytes = self._load_dex_from_cache()
+        else:
+            self.log(".dex not found or too old, downloading...")
+            try:
+                response = requests.get(DEX_URL)
                 response.raise_for_status()
-                with open(dex_path, "wb") as f:
-                    f.write(response.content)
-                log(f"[{__id__}] DEX downloaded successfully.")
+                dex_bytes = response.content
+                with open(self.get_dex_path(), "wb") as file:
+                    file.write(dex_bytes)
+            except Exception as e:
+                self.log(f"Failed to download .dex: {e}, reading from cache...")
+                self._load_dex_from_cache()
 
-            # Чтение байтов и загрузка в память
-            with open(dex_path, "rb") as f:
-                dex_bytes = f.read()
+        app_class_loader = ApplicationLoader.applicationContext.getClassLoader()
+        dex_loader = InMemoryDexClassLoader(ByteBuffer.wrap(dex_bytes), app_class_loader)
+        return dex_loader.loadClass(CONTROLLER_CLASS_NAME)
 
-            app_class_loader = ApplicationLoader.applicationContext.getClassLoader()
-            dex_loader = InMemoryDexClassLoader(ByteBuffer.wrap(dex_bytes), app_class_loader)
-
-            # Поиск основного класса
-            self.dex_class = dex_loader.loadClass(PLAYER_CLASS_NAME)
-            log(f"[{__id__}] Class {PLAYER_CLASS_NAME} loaded from DEX.")
-
-        except Exception as e:
-            self.log_error("DEX system error", e)
+    def _load_dex_from_cache(self) -> bytes:
+        with open(self.get_dex_path(), "rb") as file:
+            dex_bytes = file.read()
+        return dex_bytes
 
     def create_settings(self):
         return [
