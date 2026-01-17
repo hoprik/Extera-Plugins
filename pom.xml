@@ -5,8 +5,8 @@
          http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
     <modelVersion>4.0.0</modelVersion>
-    <groupId>org.example</groupId>
-    <artifactId>MusicPlayer</artifactId>
+    <groupId>ru.hoprik</groupId>
+    <artifactId>player</artifactId>
     <version>1.0-SNAPSHOT</version>
 
     <properties>
@@ -14,23 +14,44 @@
         <maven.compiler.target>8</maven.compiler.target>
     </properties>
 
+    <dependencies>
+        <dependency>
+            <groupId>org.telegram</groupId>
+            <artifactId>messenger</artifactId>
+            <version>latest</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/telegram.jar</systemPath>
+        </dependency>
+        <dependency>
+            <groupId>com.google.android</groupId>
+            <artifactId>android</artifactId>
+            <version>current</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/android.jar</systemPath>
+        </dependency>
+    </dependencies>
+
     <build>
         <plugins>
-            <!-- 1. Компиляция Java -->
+            <!-- 1. Компилируем весь код -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
             </plugin>
 
-            <!-- 2. Создание JAR -->
+            <!-- 2. Создаем JAR только с ru.hoprik.player (ИСПРАВЛЕНО) -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <version>3.3.0</version>
+                <configuration>
+                    <includes>
+                        <include>ru/hoprik/player/**</include>
+                    </includes>
+                </configuration>
             </plugin>
 
-            <!-- 3. Конвертация JAR в DEX -->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
@@ -47,7 +68,7 @@
                                 <argument>libs/d8.jar</argument>
                                 <argument>com.android.tools.r8.D8</argument>
                                 <argument>--output</argument>
-                                <argument>target</argument>
+                                <argument>${project.basedir}</argument>  <!-- 👈 Корень проекта -->
                                 <argument>target/${project.artifactId}-${project.version}.jar</argument>
                             </arguments>
                         </configuration>
