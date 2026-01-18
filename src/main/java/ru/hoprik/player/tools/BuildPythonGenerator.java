@@ -1,0 +1,30 @@
+package ru.hoprik.player.tools;
+
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.Base64;
+import java.util.regex.Pattern;
+
+public class BuildPythonGenerator {
+    public static void main(String[] args) throws Exception {
+        byte[] dexBytes = Files.readAllBytes(Paths.get("classes.dex"));
+        String base64 = Base64.getEncoder().encodeToString(dexBytes);
+        String template = new String(Files.readAllBytes(Paths.get("plugin.py")));
+
+        StringBuilder formattedBase64 = new StringBuilder();
+        formattedBase64.append("\"\"\"\n");
+
+        for (int i = 0; i < base64.length(); i += 80) {
+            formattedBase64.append(base64.substring(i, Math.min(i + 80, base64.length())));
+            formattedBase64.append("\n");
+        }
+        formattedBase64.append("\"\"\"");
+        String buildContent = template.replace("# DEX_DATA_HERE #", formattedBase64.toString());
+
+        Files.write(Paths.get("build.plugin"), buildContent.getBytes());
+
+        System.out.println("✓ build.py успешно сгенерирован");
+        System.out.println("✓ DEX размер: " + dexBytes.length + " байт");
+        System.out.println("✓ Base64 размер: " + base64.length() + " символов");
+    }
+}
