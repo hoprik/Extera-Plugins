@@ -45,12 +45,11 @@ __version__ = "1.0"
 __icon__ = "rottenprince_by_FStikBot/0"
 __min_version__ = "11.12.0"
 
+dex_hash = ""
 dex_data = # DEX_DATA_HERE #
 
 MusicPlayer = None
 PLAYER_CLASS_NAME = "ru.hoprik.player.MusicPlayer"
-DEX_URL = "https://github.com/hoprik/Extera-Plugins/raw/refs/heads/fullscreen_dex/classes.dex"
-DEX_FILE_NAME = "player.dex"
 DEV_MODE = True
 
 # ============ Colors ============
@@ -156,21 +155,27 @@ class PlayerPlugin(BasePlugin):
 
     def on_plugin_load(self):
         self.add_settings_menu_items()
-        self.dex_load()
+        run_on_queue(self.dex_load)
 
     def dex_load(self):
         global MusicPlayer
-        import base64
-        dex_code = base64.b64decode(dex_data)
+        clazz = None
 
-        app_class_loader = ApplicationLoader.applicationContext.getClassLoader()
-        dex_loader = InMemoryDexClassLoader(dex_code, app_class_loader)
-        clazz = dex_loader.loadClass(PLAYER_CLASS_NAME)
+        try:
+            clazz = find_class(PLAYER_CLASS_NAME).getClass()
+            self.log(f"Found existing class: {PLAYER_CLASS_NAME}")
+        except:
+            self.log(f"Class not found, loading DEX...")
+            import base64
+            dex_code = base64.b64decode(dex_data)
+            app_class_loader = ApplicationLoader.applicationContext.getClassLoader()
+            dex_loader = InMemoryDexClassLoader(ByteBuffer.wrap(dex_code), app_class_loader)
+            clazz = dex_loader.loadClass(PLAYER_CLASS_NAME)
 
         try:
             MusicPlayer = clazz.getDeclaredMethod("getInstance").invoke(None)
         except Exception as e:
-            self.log(e)
+            self.log(f"FATAL ERROR getting instance: {e}")
 
     def create_settings(self):
         return [
@@ -1101,21 +1106,7 @@ class PlayerPlugin(BasePlugin):
     def setup_player_ui(self):
         try:
             activity = get_last_fragment()
-            activity.presentFragment(
-                PluginSettingsActivity(
-                    PluginsController.getInstance().plugins.get(self.id)
-                )
-            )
-
-            current_fragment = get_last_fragment()
-            view = current_fragment.getLayoutContainer()
-
-            container = self.find_suitable_container(view)
-            if container:
-                container.removeAllViews()
-                container.invalidate()
-                self.stop_update_thread()
-                self.render_fullscreen_player(container, current_fragment)
+            MusicPlayer.startPlayerUI(activity)
         except Exception as e:
             self.log_error("Error in setup_player_ui", e)
 
