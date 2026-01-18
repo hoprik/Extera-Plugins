@@ -33,14 +33,11 @@
 
     <build>
         <plugins>
-            <!-- 1. Компилируем весь код -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
             </plugin>
-
-            <!-- 2. Создаем JAR только с ru.hoprik.player (ИСПРАВЛЕНО) -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
@@ -70,6 +67,20 @@
                                 <argument>--output</argument>
                                 <argument>${project.basedir}</argument>
                                 <argument>target/${project.artifactId}-${project.version}.jar</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+
+                    <execution>
+                        <id>generate-build-py</id>
+                        <phase>package</phase>
+                        <goals><goal>exec</goal></goals>
+                        <configuration>
+                            <executable>java</executable>
+                            <arguments>
+                                <argument>-cp</argument>
+                                <argument>target/classes</argument>
+                                <argument>ru.hoprik.player.tools.BuildPythonGenerator</argument>
                             </arguments>
                         </configuration>
                     </execution>

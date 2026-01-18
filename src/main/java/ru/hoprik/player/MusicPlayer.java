@@ -9,4 +9,6 @@ public class MusicPlayer {
     public static MusicPlayer getInstance() {
         return instance;
     }
+
+    private void
 }
