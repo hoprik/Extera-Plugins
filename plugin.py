@@ -56,7 +56,7 @@ DEV_MODE = True
 COLORS = {
     "background": "#08090a",
     "background_overlay": "#CC08090a",
-    "text_primary": "#FFFFFF",
+    "text_primarytext_primary": "#FFFFFF",
     "text_secondary": "#AAAAAA",
     "accent": "#fff300",
     "icon": "#FFFFFF",

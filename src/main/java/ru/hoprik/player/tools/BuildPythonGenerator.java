@@ -12,13 +12,8 @@ public class BuildPythonGenerator {
         String template = new String(Files.readAllBytes(Paths.get("plugin.py")));
 
         StringBuilder formattedBase64 = new StringBuilder();
-        formattedBase64.append("\"\"\"\n");
-
-        for (int i = 0; i < base64.length(); i += 80) {
-            formattedBase64.append(base64.substring(i, Math.min(i + 80, base64.length())));
-            formattedBase64.append("\n");
-        }
-        formattedBase64.append("\"\"\"\ndex_hash = \""+hashSHA256(dexBytes)+"\"");
+        formattedBase64.append("\"").append(base64.toString()).append("\"");
+        formattedBase64.append("\ndex_hash = \"").append(hashSHA256(dexBytes)).append("\"");
         String buildContent = template.replace("# DEX_DATA_HERE #", formattedBase64.toString());
 
         Files.write(Paths.get("build.plugin"), buildContent.getBytes());
