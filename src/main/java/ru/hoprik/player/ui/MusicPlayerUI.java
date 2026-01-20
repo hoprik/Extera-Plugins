@@ -2,7 +2,6 @@ package ru.hoprik.player.ui;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
-import android.app.Activity;
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.PorterDuff;
@@ -213,23 +212,20 @@ public class MusicPlayerUI extends BaseFragment {
                 false
         ));
 
-        ClassLoader loader = this.getParentActivity().getClassLoader();
-        Log.i("LOAFD", loader.toString());
-        // 2. Проверяем наличие класса ЧЕРЕЗ ЗАГРУЗЧИК ХОСТА
-        if (loader != null && isLyricsAvailable(loader)) {
+        if (isLyricsActivityAvailable()) {
             list.add(new ControlsElement(
                     () -> {
                         try {
-                            Class<?> lyricsClass = loader.loadClass("com.pessdes.lyrics.ui.LyricsActivity");
-
+                            // Получаем класс и запускаем его через Intent
+                            Class<?> lyricsClass = Class.forName("com.pessdes.lyrics.ui.LyricsActivity");
                             Object instance = lyricsClass.getDeclaredConstructor().newInstance();
 
-                            if (instance instanceof BaseFragment) {
-                                this.presentFragment((BaseFragment) instance);
-                            }
+                            this.presentFragment((BaseFragment) instance);
+
                         } catch (Exception e) {
+                            // На случай, если что-то пошло не так при запуске
+                            BulletinFactory.of(this).createSimpleBulletin(R.raw.error, "Ошибка запуска").show(true);
                             e.printStackTrace();
-                            BulletinFactory.of(this).createSimpleBulletin(R.raw.error, "Ошибка загрузки класса").show(true);
                         }
                     },
                     R.drawable.msg_photo_text2,
@@ -237,13 +233,13 @@ public class MusicPlayerUI extends BaseFragment {
             ));
         }
 
+
         return list;
     }
-    // Хелпер для проверки через правильный ClassLoader
-    private boolean isLyricsAvailable(ClassLoader loader) {
+
+    private boolean isLyricsActivityAvailable() {
         try {
-            // false - не инициализировать (просто проверить наличие)
-            Class.forName("com.pessdes.lyrics.ui.LyricsActivity", false, loader);
+            Class.forName("com.pessdes.lyrics.ui.LyricsActivity");
             return true;
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
