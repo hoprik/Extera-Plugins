@@ -22,9 +22,22 @@ public class MusicInfo {
         update();
     }
 
+
+    public boolean isMusic(MessageObject messageObject){
+        try{
+            TLRPC.Document document = messageObject.getDocument();
+            if (document != null){
+                return !document.attributes.get(0).voice && !document.attributes.get(0).round_message;
+            }
+        } catch (Exception e) {
+            return false;
+        }
+        return false;
+    }
+
     public void update() {
         MessageObject playingMessageObject = MediaController.getInstance().getPlayingMessageObject();
-        if (playingMessageObject == null) {
+        if (playingMessageObject == null || !isMusic(playingMessageObject)) {
             this.shouldUpdate = false;
             this.currentTitle = "";
             this.currentAuthor = "";
@@ -71,7 +84,6 @@ public class MusicInfo {
 
         if (!newTitle.equals(this.lastTitle) || !newAuthor.equals(this.lastAuthor)) {
             this.shouldUpdate = true;
-            // Обновляем "память"
             this.lastTitle = newTitle;
             this.lastAuthor = newAuthor;
         }

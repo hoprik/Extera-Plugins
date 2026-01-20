@@ -51,7 +51,7 @@ public class ImageHelper {
         return null;
     }
 
-    public static void updateCover(MessageObject object, BackupImageView imageView) {
+    public static void updateCover(MessageObject object, BackupImageView imageView, boolean isBackground) {
         try {
             AudioInfo audioInfo = MediaController.getInstance().getAudioInfo();
 
@@ -61,6 +61,10 @@ public class ImageHelper {
 
             String artworkUrl = object.getArtworkUrl(false);
             ImageLocation location = getArtworkThubImageLocation(object);
+
+            if (isBackground){
+                imageView.setAspectFit(false);
+            }
 
             if (!TextUtils.isEmpty(artworkUrl)) {
                 imageView.setImage(
@@ -86,6 +90,9 @@ public class ImageHelper {
                 );
             }else{
                 imageView.setImageResource(R.drawable.nocover);
+                if (isBackground){
+                    imageView.setAspectFit(true);
+                }
             }
 
             imageView.invalidate();

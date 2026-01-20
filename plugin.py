@@ -39,9 +39,9 @@ from java import dynamic_proxy
 
 __id__ = "fullscreen_music_player"
 __name__ = "Music Player"
-__description__ = "Full screen music player"
+__description__ = "Full screen music player. Если вы обновляйте плагин, перезапустите весь телеграм для адекватной работы"
 __author__ = "@hoprik"
-__version__ = "1.0"
+__version__ = "1.1"
 __icon__ = "rottenprince_by_FStikBot/0"
 __min_version__ = "11.12.0"
 
@@ -161,21 +161,49 @@ class PlayerPlugin(BasePlugin):
         global MusicPlayer
         clazz = None
 
-        try:
-            clazz = find_class(PLAYER_CLASS_NAME).getClass()
-            self.log(f"Found existing class: {PLAYER_CLASS_NAME}")
-        except:
-            self.log(f"Class not found, loading DEX...")
-            import base64
-            dex_code = base64.b64decode(dex_data)
-            app_class_loader = ApplicationLoader.applicationContext.getClassLoader()
-            dex_loader = InMemoryDexClassLoader(ByteBuffer.wrap(dex_code), app_class_loader)
-            clazz = dex_loader.loadClass(PLAYER_CLASS_NAME)
+        # Получаем ClassLoader хоста заранее
+        app_class_loader = ApplicationLoader.applicationContext.getClassLoader()
 
         try:
+            # 1. Пытаемся найти уже загруженный класс
+            # find_class обычно ищет в текущем загрузчике
+            clazz = find_class(PLAYER_CLASS_NAME).getClass()
+            self.log(f"Found existing class: {PLAYER_CLASS_NAME}")
+
+            # 2. Если класс найден — просто берем инстанс.
+            # ВАЖНО: Не нужно снова делать injectDex, он уже там!
             MusicPlayer = clazz.getDeclaredMethod("getInstance").invoke(None)
+            return # Выходим, всё готово
+
         except Exception as e:
-            self.log(f"FATAL ERROR getting instance: {e}")
+            # Если класса нет — идем дальше
+            pass
+
+        # --- Блок загрузки (выполняется только если класса нет) ---
+        self.log(f"Class not found, loading DEX...")
+        try:
+            import base64
+            dex_code = base64.b64decode(dex_data)
+
+            # Создаем новый загрузчик
+            dex_loader = InMemoryDexClassLoader(ByteBuffer.wrap(dex_code), app_class_loader)
+
+            # Грузим класс из него
+            clazz = dex_loader.loadClass(PLAYER_CLASS_NAME)
+
+            # Получаем инстанс
+            MusicPlayer = clazz.getDeclaredMethod("getInstance").invoke(None)
+
+            # 3. ДЕЛАЕМ ИНЪЕКЦИЮ ТОЛЬКО ЗДЕСЬ
+            # Мы точно знаем, что dex_loader существует и он новый
+            MusicPlayer.injectDex(app_class_loader, dex_loader)
+
+            self.log("✅ DEX loaded and injected successfully")
+
+        except Exception as e:
+            self.log(f"FATAL ERROR loading/injecting dex: {e}")
+            import traceback
+            traceback.print_exc()
 
     def create_settings(self):
         return [
