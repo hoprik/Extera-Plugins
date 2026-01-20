@@ -2,6 +2,7 @@ package ru.hoprik.player.ui;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
+import android.app.Activity;
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.PorterDuff;
@@ -10,6 +11,8 @@ import android.graphics.Typeface;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.Gravity;
@@ -18,6 +21,9 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.*;
 import android.widget.SeekBar;
+import androidx.core.view.OnApplyWindowInsetsListener;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -27,10 +33,14 @@ import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.*;
+import ru.hoprik.player.utils.ControlsHelpers;
 import ru.hoprik.player.utils.ImageHelper;
 import ru.hoprik.player.utils.MusicInfo;
+import ru.hoprik.player.utils.UpdateManager;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public class MusicPlayerUI extends BaseFragment {
 
@@ -42,6 +52,9 @@ public class MusicPlayerUI extends BaseFragment {
     TextView remainingTimeView;
     ImageView repeatButtonView;
     ImageView shuffleButtonView;
+    SeekBar seekBar;
+
+    UpdateManager manager;
 
     boolean enableShafle = true;
 
@@ -80,7 +93,7 @@ public class MusicPlayerUI extends BaseFragment {
         main_layout.setOrientation(LinearLayout.VERTICAL);
         main_layout.setPadding(
                 AndroidUtilities.dp(20),
-                AndroidUtilities.dp(10),
+                AndroidUtilities.dp(20),
                 AndroidUtilities.dp(20),
                 AndroidUtilities.dp(20)
         );
@@ -88,6 +101,18 @@ public class MusicPlayerUI extends BaseFragment {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
+
+        ViewCompat.setOnApplyWindowInsetsListener(container, (v, insets) -> {
+            int statusBarHeight = insets.getSystemWindowInsetTop();
+            main_layout.setPadding(
+                    AndroidUtilities.dp(20),
+                    AndroidUtilities.dp(statusBarHeight),
+                    AndroidUtilities.dp(20),
+                    AndroidUtilities.dp(20)
+            );
+            return ViewCompat.onApplyWindowInsets(v, insets);
+        });
+
 
         ImageView backButton = new ImageView(context);
         backButton.setOnClickListener(view -> finishFragment());
@@ -132,12 +157,98 @@ public class MusicPlayerUI extends BaseFragment {
         LinearLayout controls1 = createControl(context);
         main_layout.addView(controls1);
 
-        ImageHelper.updateCover(info.getMessageObject(), avatarCover);
-        ImageHelper.updateCover(info.getMessageObject(), this.backgroundImage);
+        View space = new View(context);
+        LinearLayout.LayoutParams space_params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                1
+        );
+        space.setLayoutParams(space_params);
+        main_layout.addView(space);
+
+        LinearLayout controls2 = createControl2(context, getElements(info));
+        main_layout.addView(controls2);
+
+        ImageHelper.updateCover(info.getMessageObject(), avatarCover, false);
+        ImageHelper.updateCover(info.getMessageObject(), this.backgroundImage, true);
+
+        this.manager = new UpdateManager(info, songView, authorView, avatarCover, backgroundImage, overlayColor, currentTimeView, remainingTimeView, seekBar);
+        this.manager.startUpdater();
 
         container.addView(main_layout);
 
         return fragmentView;
+    }
+
+    @Override
+    public void onFragmentClosed() {
+        this.manager.stopUpdater();
+    }
+
+    private List<ControlsElement> getElements(MusicInfo info){
+        List<ControlsElement> list = new ArrayList<>();
+        list.add(new ControlsElement(
+                () -> {
+                    ControlsHelpers.saveToMusic(info.getMessageObject(), this.getParentActivity());
+                    BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_download, "Музыка была скачана").show(true);
+                },
+                R.drawable.msg_download,
+                false
+        ));
+
+        list.add(new ControlsElement(
+                () -> {
+                    ControlsHelpers.share(info.getMessageObject(), this.getParentActivity());
+                },
+                R.drawable.share,
+                false
+        ));
+
+        list.add(new ControlsElement(
+                () -> {
+                    ControlsHelpers.forward(info.getMessageObject(), UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId());
+                    BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_save_to_music, "Музыка сохранена в избранное").show(true);
+                },
+                R.drawable.msg_save_story,
+                false
+        ));
+
+        ClassLoader loader = ClassLoader.getSystemClassLoader();
+        Log.i("LOAFD", loader.toString());
+        // 2. Проверяем наличие класса ЧЕРЕЗ ЗАГРУЗЧИК ХОСТА
+        if (loader != null && isLyricsAvailable(loader)) {
+            list.add(new ControlsElement(
+                    () -> {
+                        try {
+                            Class<?> lyricsClass = loader.loadClass("com.pessdes.lyrics.ui.LyricsActivity");
+
+                            Object instance = lyricsClass.getDeclaredConstructor().newInstance();
+
+                            if (instance instanceof BaseFragment) {
+                                this.presentFragment((BaseFragment) instance);
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                            BulletinFactory.of(this).createSimpleBulletin(R.raw.error, "Ошибка загрузки класса").show(true);
+                        }
+                    },
+                    R.drawable.msg_photo_text2,
+                    false
+            ));
+        }
+
+        return list;
+    }
+    // Хелпер для проверки через правильный ClassLoader
+    private boolean isLyricsAvailable(ClassLoader loader) {
+        try {
+            // false - не инициализировать (просто проверить наличие)
+            Class.forName("com.pessdes.lyrics.ui.LyricsActivity", false, loader);
+            return true;
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 
     private void updateRepeatButtons() {
@@ -156,6 +267,45 @@ public class MusicPlayerUI extends BaseFragment {
                 this.shuffleButtonView.setAlpha(0.5f);
             }
         }
+    }
+
+    private LinearLayout createControl2(Context context, List<ControlsElement> elements){
+        int iconColor = Color.parseColor("#FFFFFF");
+
+        LinearLayout linearLayout = new LinearLayout(context);
+        linearLayout.setOrientation(LinearLayout.HORIZONTAL);
+        linearLayout.setGravity(Gravity.CENTER_HORIZONTAL | Gravity.CENTER_VERTICAL);
+        linearLayout.setLayoutParams(new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        LinearLayout.LayoutParams buttonsParams = new LinearLayout.LayoutParams(
+                AndroidUtilities.dp(30),
+                AndroidUtilities.dp(30)
+        );
+        buttonsParams.setMargins(
+                AndroidUtilities.dp(10), 0,
+                AndroidUtilities.dp(10), 0
+        );
+
+        for (ControlsElement element: elements){
+            RLottieImageView buttonElement = new RLottieImageView(context);
+            buttonElement.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            if (element.isAnimation){
+                buttonElement.setAnimation(element.getIconId(), 36, 36);
+            }else {
+                buttonElement.setImageResource(element.getIconId());
+                buttonElement.setColorFilter(iconColor);
+            }
+            buttonElement.setLayoutParams(buttonsParams);
+
+            buttonElement.setOnClickListener(view -> new Handler(Looper.getMainLooper()).post(element.getRunnable()));
+
+            linearLayout.addView(buttonElement);
+        }
+
+        return linearLayout;
     }
 
     private LinearLayout createControl(Context context) {
@@ -226,6 +376,7 @@ public class MusicPlayerUI extends BaseFragment {
             if (finalPlayPauseDrawable != null) {
                 finalPlayPauseDrawable.setPause(!MediaController.getInstance().isMessagePaused(), false);
             }
+            manager.updateUI();
         });
 
         controllerLayout.addView(prevButton);
@@ -272,6 +423,7 @@ public class MusicPlayerUI extends BaseFragment {
             if (finalPlayPauseDrawable2 != null) {
                 finalPlayPauseDrawable2.setPause(!MediaController.getInstance().isMessagePaused(), false);
             }
+            manager.updateUI();
         });
         controllerLayout.addView(nextButton);
 
@@ -289,12 +441,12 @@ public class MusicPlayerUI extends BaseFragment {
                 } else {
                     MediaController.getInstance().setPlaybackOrderType(2);
                 }
+                updateRepeatButtons();
             });
             controllerLayout.addView(this.shuffleButtonView);
         }
         return controllerLayout;
     }
-
 
     private LinearLayout createTimeline(Context context, MusicInfo info) {
         LinearLayout timeContainer = new LinearLayout(context);
@@ -351,7 +503,7 @@ public class MusicPlayerUI extends BaseFragment {
         );
         progressContainer.setLayoutParams(progressContainerParams);
 
-        SeekBar seekBar = new SeekBar(context);
+        seekBar = new SeekBar(context);
         seekBar.setMax(100);
 
         GradientDrawable thumbDrawable = new GradientDrawable();
@@ -380,19 +532,24 @@ public class MusicPlayerUI extends BaseFragment {
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
-                if (b) {
+                Log.i("TTTT", i+" "+b);
+                if (b && !manager.isDragging()) {
                     currentTimeView.setText(AndroidUtilities.formatLongDuration((i / seekBar.getMax()) * info.getAudioProgress()));
+                    info.update();
                 }
             }
 
             @Override
             public void onStartTrackingTouch(SeekBar seekBar) {
-
+                manager.setDragging(true);
             }
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
                 MediaController.getInstance().seekToProgress(info.getMessageObject(), (float) seekBar.getProgress() / seekBar.getMax());
+                if (manager != null){
+                    manager.setDragging(false);
+                }
             }
         });
 
@@ -513,6 +670,42 @@ public class MusicPlayerUI extends BaseFragment {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 Gravity.CENTER));
+    }
+
+    private static class ControlsElement {
+        private Runnable runnable;
+        private int iconId;
+        private boolean isAnimation;
+
+        public ControlsElement(Runnable runnable, int iconId, boolean isAnimation) {
+            this.runnable = runnable;
+            this.iconId = iconId;
+            this.isAnimation = isAnimation;
+        }
+
+        public Runnable getRunnable() {
+            return runnable;
+        }
+
+        public void setRunnable(Runnable runnable) {
+            this.runnable = runnable;
+        }
+
+        public int getIconId() {
+            return iconId;
+        }
+
+        public void setIconId(int iconId) {
+            this.iconId = iconId;
+        }
+
+        public boolean isAnimation() {
+            return isAnimation;
+        }
+
+        public void setAnimation(boolean animation) {
+            isAnimation = animation;
+        }
     }
 
     private class SwipeBackLayout extends FrameLayout {
