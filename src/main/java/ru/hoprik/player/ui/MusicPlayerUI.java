@@ -213,7 +213,7 @@ public class MusicPlayerUI extends BaseFragment {
                 false
         ));
 
-        ClassLoader loader = ClassLoader.getSystemClassLoader();
+        ClassLoader loader = this.getParentActivity().getClassLoader();
         Log.i("LOAFD", loader.toString());
         // 2. Проверяем наличие класса ЧЕРЕЗ ЗАГРУЗЧИК ХОСТА
         if (loader != null && isLyricsAvailable(loader)) {
