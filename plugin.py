@@ -88,7 +88,7 @@ class LocalizationManager:
             "settings_enable_enter_chat": "Add element to chat",
             "settings_enable_enter_sidebar": "Add element to sidebar (Works only if Plugins are added to sidebar)",
             "settings_enable_addon_lyrics": "Enable lyrics plugin support (Requires plugin to be installed)"
-        }1/
+        }
     }
 
     def __init__(self):
