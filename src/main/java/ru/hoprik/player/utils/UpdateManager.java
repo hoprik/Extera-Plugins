@@ -1,6 +1,7 @@
 package ru.hoprik.player.utils;
 
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
@@ -10,6 +11,7 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 import org.telegram.messenger.ImageReceiver;
 import org.telegram.ui.Components.BackupImageView;
+import ru.hoprik.player.MusicPlayer;
 
 public class UpdateManager {
 
@@ -77,20 +79,29 @@ public class UpdateManager {
             backgroundView.getImageReceiver().setDelegate(new ImageReceiver.ImageReceiverDelegate() {
                 @Override
                 public void didSetImage(ImageReceiver imageReceiver, boolean set, boolean thumb, boolean memCache) {
-                    if (imageReceiver.getBitmap() != null) {
-                        applyColors(imageReceiver.getBitmap(), overlayColor);
+                    if (MusicPlayer.getInstance().isFeatureEnabled("enable_background_dominant", true)) {
+                        if (imageReceiver.getBitmap() != null) {
+                            applyColors(imageReceiver.getBitmap(), overlayColor);
+                            return;
+                        }
+                        overlayColor.setColors(new int[]{Color.parseColor("#525252"), ImageHelper.darkenColor(Color.parseColor("#525252"), 0.6f)});
                     }
                 }
 
                 @Override
                 public void didSetImageBitmap(int i, String s, Drawable drawable) {
-                    if (drawable instanceof BitmapDrawable) {
-                        applyColors(((BitmapDrawable) drawable).getBitmap(), overlayColor);
+                    if (MusicPlayer.getInstance().isFeatureEnabled("enable_background_dominant", true)) {
+                        if (drawable instanceof BitmapDrawable) {
+                            applyColors(((BitmapDrawable) drawable).getBitmap(), overlayColor);
+                            return;
+                        }
+                        overlayColor.setColors(new int[]{Color.parseColor("#525252"), ImageHelper.darkenColor(Color.parseColor("#525252"), 0.6f)});
                     }
                 }
 
                 @Override
-                public void onAnimationReady(ImageReceiver imageReceiver) {}
+                public void onAnimationReady(ImageReceiver imageReceiver) {
+                }
             });
         }
 

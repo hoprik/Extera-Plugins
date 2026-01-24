@@ -32,6 +32,7 @@ import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.*;
+import ru.hoprik.player.MusicPlayer;
 import ru.hoprik.player.utils.ControlsHelpers;
 import ru.hoprik.player.utils.ImageHelper;
 import ru.hoprik.player.utils.MusicInfo;
@@ -55,10 +56,16 @@ public class MusicPlayerUI extends BaseFragment {
 
     UpdateManager manager;
 
-    boolean enableShafle = true;
+    boolean enableShuffle;
+    boolean enableDownload;
+    boolean enableShare;
+    boolean enableSave;
 
     public MusicPlayerUI() {
-        this.enableShafle = true;
+        this.enableShuffle = MusicPlayer.getInstance().isFeatureEnabled("enable_feature_shuffle", true);
+        this.enableDownload = MusicPlayer.getInstance().isFeatureEnabled("enable_feature_download", true);
+        this.enableShare = MusicPlayer.getInstance().isFeatureEnabled("enable_feature_share", true);
+        this.enableSave = MusicPlayer.getInstance().isFeatureEnabled("enable_feature_save", true);
     }
 
     @Override
@@ -184,47 +191,50 @@ public class MusicPlayerUI extends BaseFragment {
         this.manager.stopUpdater();
     }
 
-    private List<ControlsElement> getElements(MusicInfo info){
+    private List<ControlsElement> getElements(MusicInfo info) {
         List<ControlsElement> list = new ArrayList<>();
-        list.add(new ControlsElement(
-                () -> {
-                    ControlsHelpers.saveToMusic(info.getMessageObject(), this.getParentActivity());
-                    BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_download, "Музыка была скачана").show(true);
-                },
-                R.drawable.msg_download,
-                false
-        ));
-
-        list.add(new ControlsElement(
-                () -> {
-                    ControlsHelpers.share(info.getMessageObject(), this.getParentActivity());
-                },
-                R.drawable.share,
-                false
-        ));
-
-        list.add(new ControlsElement(
-                () -> {
-                    ControlsHelpers.forward(info.getMessageObject(), UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId());
-                    BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_save_to_music, "Музыка сохранена в избранное").show(true);
-                },
-                R.drawable.msg_save_story,
-                false
-        ));
-
+        if (enableDownload) {
+            list.add(new ControlsElement(
+                    () -> {
+                        ControlsHelpers.saveToMusic(info.getMessageObject(), this.getParentActivity());
+                        BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_download, MusicPlayer.getInstance().getString("downloaded")).show(true);
+                    },
+                    R.drawable.msg_download,
+                    false
+            ));
+        }
+        if (enableShare) {
+            list.add(new ControlsElement(
+                    () -> {
+                        ControlsHelpers.share(info.getMessageObject(), this.getParentActivity());
+                    },
+                    R.drawable.share,
+                    false
+            ));
+        }
+        if (enableSave) {
+            list.add(new ControlsElement(
+                    () -> {
+                        ControlsHelpers.forward(info.getMessageObject(), UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId());
+                        BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_save_to_music, MusicPlayer.getInstance().getString("saved")).show(true);
+                    },
+                    R.drawable.msg_save_story,
+                    false
+            ));
+        }
         if (isLyricsActivityAvailable()) {
             list.add(new ControlsElement(
                     () -> {
                         try {
-                            // Получаем класс и запускаем его через Intent
-                            Class<?> lyricsClass = Class.forName("com.pessdes.lyrics.ui.LyricsActivity");
-                            Object instance = lyricsClass.getDeclaredConstructor().newInstance();
+                            // БЕРЕМ КЛАСС ИЗ SINGLETON'А, А НЕ ЧЕРЕЗ FORNAME
+                            Class<?> lyricsClass = MusicPlayer.getInstance().getLyricsClass();
 
+                            // Создаем экземпляр и открываем фрагмент
+                            Object instance = lyricsClass.getDeclaredConstructor().newInstance();
                             this.presentFragment((BaseFragment) instance);
 
                         } catch (Exception e) {
-                            // На случай, если что-то пошло не так при запуске
-                            BulletinFactory.of(this).createSimpleBulletin(R.raw.error, "Ошибка запуска").show(true);
+                            BulletinFactory.of(this).createSimpleBulletin(R.raw.error, MusicPlayer.getInstance().getString("start_error")).show(true);
                             e.printStackTrace();
                         }
                     },
@@ -238,13 +248,8 @@ public class MusicPlayerUI extends BaseFragment {
     }
 
     private boolean isLyricsActivityAvailable() {
-        try {
-            Class.forName("com.pessdes.lyrics.ui.LyricsActivity");
-            return true;
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-            return false;
-        }
+        Log.i("TEST2", String.valueOf(MusicPlayer.getInstance().getLyricsClass() != null));
+        return MusicPlayer.getInstance().getLyricsClass() != null;
     }
 
     private void updateRepeatButtons() {
@@ -256,16 +261,16 @@ public class MusicPlayerUI extends BaseFragment {
             }
         }
 
-        if (this.shuffleButtonView != null){
-            if (SharedConfig.shuffleMusic){
+        if (this.shuffleButtonView != null) {
+            if (SharedConfig.shuffleMusic) {
                 this.shuffleButtonView.setAlpha(1.0f);
-            }else{
+            } else {
                 this.shuffleButtonView.setAlpha(0.5f);
             }
         }
     }
 
-    private LinearLayout createControl2(Context context, List<ControlsElement> elements){
+    private LinearLayout createControl2(Context context, List<ControlsElement> elements) {
         int iconColor = Color.parseColor("#FFFFFF");
 
         LinearLayout linearLayout = new LinearLayout(context);
@@ -285,12 +290,12 @@ public class MusicPlayerUI extends BaseFragment {
                 AndroidUtilities.dp(10), 0
         );
 
-        for (ControlsElement element: elements){
+        for (ControlsElement element : elements) {
             RLottieImageView buttonElement = new RLottieImageView(context);
             buttonElement.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            if (element.isAnimation){
+            if (element.isAnimation) {
                 buttonElement.setAnimation(element.getIconId(), 36, 36);
-            }else {
+            } else {
                 buttonElement.setImageResource(element.getIconId());
                 buttonElement.setColorFilter(iconColor);
             }
@@ -337,7 +342,7 @@ public class MusicPlayerUI extends BaseFragment {
                 AndroidUtilities.dp(5), 0
         );
 
-        if (this.enableShafle) {
+        if (this.enableShuffle) {
             this.repeatButtonView = new ImageView(context);
             this.repeatButtonView.setScaleType(ImageView.ScaleType.FIT_CENTER);
             this.repeatButtonView.setImageResource(R.drawable.player_new_repeatall);
@@ -423,7 +428,7 @@ public class MusicPlayerUI extends BaseFragment {
         });
         controllerLayout.addView(nextButton);
 
-        if (this.enableShafle) {
+        if (this.enableShuffle) {
             this.shuffleButtonView = new ImageView(context);
             this.shuffleButtonView.setScaleType(ImageView.ScaleType.FIT_CENTER);
             this.shuffleButtonView.setImageResource(R.drawable.player_new_shuffle);
@@ -528,7 +533,7 @@ public class MusicPlayerUI extends BaseFragment {
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
-                Log.i("TTTT", i+" "+b);
+                Log.i("TTTT", i + " " + b);
                 if (b && !manager.isDragging()) {
                     currentTimeView.setText(AndroidUtilities.formatLongDuration((i / seekBar.getMax()) * info.getAudioProgress()));
                     info.update();
@@ -543,7 +548,7 @@ public class MusicPlayerUI extends BaseFragment {
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
                 MediaController.getInstance().seekToProgress(info.getMessageObject(), (float) seekBar.getProgress() / seekBar.getMax());
-                if (manager != null){
+                if (manager != null) {
                     manager.setDragging(false);
                 }
             }
@@ -617,20 +622,27 @@ public class MusicPlayerUI extends BaseFragment {
         this.backgroundImage.getImageReceiver().setDelegate(new ImageReceiver.ImageReceiverDelegate() {
             @Override
             public void didSetImage(ImageReceiver imageReceiver, boolean set, boolean thumb, boolean memCache) {
-                if (imageReceiver.getBitmap() != null) {
-                    int dominant = ImageHelper.getDominantColor(imageReceiver.getBitmap());
-                    overlayColor.setColors(new int[]{dominant, ImageHelper.darkenColor(dominant, 0.6f)});
+                if (MusicPlayer.getInstance().isFeatureEnabled("enable_background_dominant", true)) {
+                    if (imageReceiver.getBitmap() != null) {
+                        int dominant = ImageHelper.getDominantColor(imageReceiver.getBitmap());
+                        overlayColor.setColors(new int[]{dominant, ImageHelper.darkenColor(dominant, 0.6f)});
+                        return;
+                    }
+                    overlayColor.setColors(new int[]{Color.parseColor("#525252"), ImageHelper.darkenColor(Color.parseColor("#525252"), 0.6f)});
                 }
-
             }
 
             @Override
             public void didSetImageBitmap(int i, String s, Drawable drawable) {
-                if (drawable != null) {
-                    if (drawable instanceof BitmapDrawable) {
-                        int dominant = ImageHelper.getDominantColor((BitmapDrawable) drawable);
-                        overlayColor.setColors(new int[]{dominant, ImageHelper.darkenColor(dominant, 0.6f)});
+                if (MusicPlayer.getInstance().isFeatureEnabled("enable_background_dominant", true)) {
+                    if (drawable != null) {
+                        if (drawable instanceof BitmapDrawable) {
+                            int dominant = ImageHelper.getDominantColor((BitmapDrawable) drawable);
+                            overlayColor.setColors(new int[]{dominant, ImageHelper.darkenColor(dominant, 0.6f)});
+                            return;
+                        }
                     }
+                    overlayColor.setColors(new int[]{Color.parseColor("#525252"), ImageHelper.darkenColor(Color.parseColor("#525252"), 0.6f)});
                 }
             }
 
@@ -657,7 +669,7 @@ public class MusicPlayerUI extends BaseFragment {
 
     private void renderError(FrameLayout container, Context context) {
         TextView textView = new TextView(context);
-        textView.setText("Включите музыку");
+        textView.setText(MusicPlayer.getInstance().getString("no_music"));
         textView.setTextSize(24);
         textView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
         textView.setGravity(Gravity.CENTER);
