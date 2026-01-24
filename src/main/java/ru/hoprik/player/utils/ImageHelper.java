@@ -22,8 +22,7 @@ public class ImageHelper {
        if (bitmap != null){
            return AndroidUtilities.getDominantColor(bitmap);
        }
-
-       return -1;
+       return Color.parseColor("#525252");
     }
 
     public static int darkenColor(int color, float factor) {
