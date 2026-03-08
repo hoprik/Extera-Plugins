@@ -1,8 +1,13 @@
 import * as cheerio from 'cheerio';
 import * as fuzzball from 'fuzzball';
 import * as punycode from 'punycode';
-import axios from 'axios';
 import {ProxyAgent, fetch} from 'undici'
+import axios from 'axios';
+import { wrapper } from 'axios-cookiejar-support';
+import { CookieJar } from 'tough-cookie';
+
+const jar = new CookieJar();
+const client = wrapper(axios.create({ jar, withCredentials: true }));
 
 function parseDuration(durationStr: string): number {
     const parts = durationStr.trim().split(':');
@@ -181,32 +186,47 @@ async function fetchTracksFromUrl(url: string): Promise<Array<{
 async function getTrackFromYoutube(
     { name, author }: { name: string; author: string }
 ): Promise<{ service: string; url: string } | null> {
-
-    // Сюда вставь строку из вкладки Cookies в Postman
-    const COOKIE_FROM_POSTMAN = 'pll_language=en; _gid=GA1.2.1983874755.1772911278; _ga=GA1.2.760042172.1772911278; FCNEC=%5B%5B%22AKsRol_JOdY8n68ISryJnyO9Ij8-ClVdDAIe3iVcWjcBrZ_bAaBTMhrhRYLtesU007S0g5WTTZTdvJvi26J_oGvJOQHI_PODVHGKmPFPBiJj2WnQmucNgQIaFGDRldfiRDfESvQg3lg4tlTOZgofIqbCfM7xjwigvA%3D%3D%22%5D%5D; _gat_gtag_UA_132567108_1=1; _ga_XPLVMMQKKB=GS2.1.s1772997103$o4$g1$t1772997666$j60$l0$h0';
+    const baseUrl = 'https://www.chosic.com';
+    const headers = {
+        'accept': '*/*',
+        'accept-language': 'en-US,en;q=0.9,ru;q=0.8',
+        'origin': baseUrl,
+        'referer': `${baseUrl}/playlist-generator/`,
+        'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
+        'x-requested-with': 'XMLHttpRequest'
+    };
 
     try {
-        const response = await axios.get('https://www.chosic.com/api/tools/get-song-video', {
+        // Проверяем наличие кук, если их нет — делаем handshake
+        const cookies = await jar.getCookies(baseUrl);
+        if (cookies.length === 0) {
+            await client.post(`${baseUrl}/api/tools/handshake/`, {}, { headers });
+        }
+
+        const response = await client.get(`${baseUrl}/api/tools/get-song-video`, {
             params: { song: name, artist: author },
-            headers: {
-                'cookie': COOKIE_FROM_POSTMAN,
-                'accept': 'application/json, text/javascript, */*; q=0.01',
-                'app': 'playlist_generator',
-                'referer': 'https://www.chosic.com/playlist-generator/',
-                'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
-                'x-requested-with': 'XMLHttpRequest'
-            }
+            headers: headers
         });
 
-        return {
-            service: "youtube",
-            url: response.data
-        };
+        if (response.data) {
+            // Очищаем ID от лишних кавычек, если они есть
+            const videoId = String(response.data).replace(/"/g, '');
+            return {
+                service: "youtube",
+                url: videoId
+            };
+        }
+        return null;
     } catch (error: any) {
-        console.error("Ошибка:", error.response?.status, error.response?.data);
+        console.error("Ошибка Chosic API:", error.response?.status, error.response?.data);
+        // Если получили 401, очищаем куки для следующей попытки
+        if (error.response?.status === 401) {
+            await jar.removeAllCookies();
+        }
         return null;
     }
 }
+
 function removeParentheses(text: string): string {
     return text.replace(/[\[\(][^\]\)]*[\]\)]/g, '').replace(/\s+/g, ' ').trim();
 }
