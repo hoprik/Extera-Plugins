@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import * as fuzzball from 'fuzzball';
 import * as punycode from 'punycode';
+import {ProxyAgent, fetch} from 'undici'
 
 function parseDuration(durationStr: string): number {
     const parts = durationStr.trim().split(':');
@@ -74,6 +75,14 @@ function authorMatchesArtists(author: string, artists: Array<{ name: string }> |
 }
 
 async function fetchTracksFromUrl(url: string): Promise<Array<{ artist: string; name: string; url: string; durationSec: number }> | null> {
+    const proxy = {
+        'host': process.env.PROXY_HOST,
+        'port': process.env.PROXY_PORT,
+    };
+    const proxyAgent = new ProxyAgent({
+        uri: `http://${proxy.host}:${proxy.port}`,
+    });
+
     const headers = new Headers({
         'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
         'accept-language': 'en-US,en;q=0.9,ru;q=0.8',
@@ -92,7 +101,7 @@ async function fetchTracksFromUrl(url: string): Promise<Array<{ artist: string; 
     });
 
     try {
-        const response = await fetch(url, { headers });
+        const response = await fetch(url, { headers, dispatcher: proxyAgent });
         if (!response.ok) {
             console.error(`HTTP error ${response.status} for ${url}`);
             return null;
