@@ -4,7 +4,7 @@ import {reqGetInfoTack} from "../type/apiTypes";
 import * as fuzzball from "fuzzball";
 import {findTrack, getAlbum} from "../lib/statsfm";
 import {Track} from "../type/types";
-import {findTrackSong} from "../lib/skysound7";
+import {findTrackSong} from "../lib/getSongUrl";
 import {downloadSong, getSongByUrl} from "../lib/downloader";
 
 const router: Router = Router();

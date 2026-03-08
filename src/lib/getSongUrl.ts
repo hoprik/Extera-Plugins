@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import * as fuzzball from 'fuzzball';
 import * as punycode from 'punycode';
+import axios from 'axios';
 import {ProxyAgent, fetch} from 'undici'
 
 function parseDuration(durationStr: string): number {
@@ -25,7 +26,39 @@ function toSlug(input: string): string {
 }
 
 const cyrillicToLatin: Record<string, string> = {
-    'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'yo','ж':'zh','з':'z','и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f','х':'kh','ц':'ts','ч':'ch','ш':'sh','щ':'shch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'
+    'а': 'a',
+    'б': 'b',
+    'в': 'v',
+    'г': 'g',
+    'д': 'd',
+    'е': 'e',
+    'ё': 'yo',
+    'ж': 'zh',
+    'з': 'z',
+    'и': 'i',
+    'й': 'y',
+    'к': 'k',
+    'л': 'l',
+    'м': 'm',
+    'н': 'n',
+    'о': 'o',
+    'п': 'p',
+    'р': 'r',
+    'с': 's',
+    'т': 't',
+    'у': 'u',
+    'ф': 'f',
+    'х': 'kh',
+    'ц': 'ts',
+    'ч': 'ch',
+    'ш': 'sh',
+    'щ': 'shch',
+    'ъ': '',
+    'ы': 'y',
+    'ь': '',
+    'э': 'e',
+    'ю': 'yu',
+    'я': 'ya'
 };
 
 function toLatin(text: string): string {
@@ -74,14 +107,22 @@ function authorMatchesArtists(author: string, artists: Array<{ name: string }> |
     });
 }
 
-async function fetchTracksFromUrl(url: string): Promise<Array<{ artist: string; name: string; url: string; durationSec: number }> | null> {
-    const proxy = {
-        'host': process.env.PROXY_HOST,
-        'port': process.env.PROXY_PORT,
-    };
-    const proxyAgent = new ProxyAgent({
-        uri: `http://${proxy.host}:${proxy.port}`,
-    });
+async function fetchTracksFromUrl(url: string): Promise<Array<{
+    artist: string;
+    name: string;
+    url: string;
+    durationSec: number
+}> | null> {
+    let proxyAgent: ProxyAgent | undefined = undefined
+    if (process.env.PROXY_HOST) {
+        const proxy = {
+            'host': process.env.PROXY_HOST,
+            'port': process.env.PROXY_PORT,
+        };
+        proxyAgent = new ProxyAgent({
+            uri: `http://${proxy.host}:${proxy.port}`,
+        });
+    }
 
     const headers = new Headers({
         'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
@@ -101,8 +142,10 @@ async function fetchTracksFromUrl(url: string): Promise<Array<{ artist: string; 
     });
 
     try {
-        const response = await fetch(url, { headers, dispatcher: proxyAgent });
-        proxyAgent.close()
+        const response = await fetch(url, {headers, dispatcher: proxyAgent});
+        if (proxyAgent) {
+            proxyAgent.close()
+        }
         if (!response.ok) {
             console.error(`HTTP error ${response.status} for ${url}`);
             return null;
@@ -124,7 +167,7 @@ async function fetchTracksFromUrl(url: string): Promise<Array<{ artist: string; 
 
             if (artist && trackName && downloadUrl) {
                 const durationSec = parseDuration(durationStr);
-                tracks.push({ artist, name: trackName, url: downloadUrl, durationSec });
+                tracks.push({artist, name: trackName, url: downloadUrl, durationSec});
             }
         });
 
@@ -135,6 +178,35 @@ async function fetchTracksFromUrl(url: string): Promise<Array<{ artist: string; 
     }
 }
 
+async function getTrackFromYoutube(
+    { name, author }: { name: string; author: string }
+): Promise<{ service: string; url: string } | null> {
+
+    // Сюда вставь строку из вкладки Cookies в Postman
+    const COOKIE_FROM_POSTMAN = 'pll_language=en; _gid=GA1.2.1983874755.1772911278; _ga=GA1.2.760042172.1772911278; FCNEC=%5B%5B%22AKsRol_JOdY8n68ISryJnyO9Ij8-ClVdDAIe3iVcWjcBrZ_bAaBTMhrhRYLtesU007S0g5WTTZTdvJvi26J_oGvJOQHI_PODVHGKmPFPBiJj2WnQmucNgQIaFGDRldfiRDfESvQg3lg4tlTOZgofIqbCfM7xjwigvA%3D%3D%22%5D%5D; _gat_gtag_UA_132567108_1=1; _ga_XPLVMMQKKB=GS2.1.s1772997103$o4$g1$t1772997666$j60$l0$h0';
+
+    try {
+        const response = await axios.get('https://www.chosic.com/api/tools/get-song-video', {
+            params: { song: name, artist: author },
+            headers: {
+                'cookie': COOKIE_FROM_POSTMAN,
+                'accept': 'application/json, text/javascript, */*; q=0.01',
+                'app': 'playlist_generator',
+                'referer': 'https://www.chosic.com/playlist-generator/',
+                'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
+                'x-requested-with': 'XMLHttpRequest'
+            }
+        });
+
+        return {
+            service: "youtube",
+            url: response.data
+        };
+    } catch (error: any) {
+        console.error("Ошибка:", error.response?.status, error.response?.data);
+        return null;
+    }
+}
 function removeParentheses(text: string): string {
     return text.replace(/[\[\(][^\]\)]*[\]\)]/g, '').replace(/\s+/g, ' ').trim();
 }
@@ -151,7 +223,7 @@ export async function findTrackSong({
     name: string;
     author: string;
     expectedDurationSec?: number
-}): Promise<string | null> {
+}): Promise< { service: string; url: string;} | null> {
     const originalName = name;
     const originalAuthor = author;
 
@@ -178,6 +250,7 @@ export async function findTrackSong({
             const slugAuthor = toSlug(authorVariant);
             const fullSubdomain = `${slugAuthor}-${slugName}`;
             urlSet.add(punycode.toASCII(fullSubdomain));
+            urlSet.add(slugAuthor)
         }
     }
 
@@ -254,9 +327,18 @@ export async function findTrackSong({
 
     if (bestTrack) {
         console.log(`Selected track: ${bestTrack.name} – ${bestTrack.artist} (${bestTrack.durationSec}s)`);
-        return bestTrack.url;
+        return {service: "skysound", url: bestTrack.url};
     }
 
     console.log('No tracks matched the criteria');
-    return null;
+    for (const authorVariant of authorVariants) {
+        const slugAuthor = toSlug(authorVariant);
+        const res = await getTrackFromYoutube({name, author: slugAuthor})
+        console.log(res)
+        if (res){
+            return res
+        }
+    }
+
+    return null
 }
