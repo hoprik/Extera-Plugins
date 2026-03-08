@@ -102,6 +102,7 @@ async function fetchTracksFromUrl(url: string): Promise<Array<{ artist: string; 
 
     try {
         const response = await fetch(url, { headers, dispatcher: proxyAgent });
+        proxyAgent.close()
         if (!response.ok) {
             console.error(`HTTP error ${response.status} for ${url}`);
             return null;

@@ -15,7 +15,7 @@ async function downloadFile(url: string, destPath: string): Promise<void> {
         uri: `http://${proxy.host}:${proxy.port}`,
     });
 
-    const response = await fetch(url, {dispatcher: proxyAgent});
+    const response = await fetch(url);
     if (!response.ok) throw new Error(`Failed to download ${url}: ${response.statusText}`);
     if (!response.body) throw new Error('No response body');
     const fileStream = createWriteStream(destPath);
