@@ -3,10 +3,12 @@ import * as fuzzball from 'fuzzball';
 import * as punycode from 'punycode';
 import {ProxyAgent, fetch} from 'undici'
 import axios from 'axios';
+// @ts-ignore
 import { wrapper } from 'axios-cookiejar-support';
 import { CookieJar } from 'tough-cookie';
 
 const jar = new CookieJar();
+// @ts-ignore
 const client = wrapper(axios.create({ jar, withCredentials: true }));
 
 function parseDuration(durationStr: string): number {
