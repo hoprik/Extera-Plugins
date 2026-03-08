@@ -8,10 +8,11 @@ import app from './src/app';
 import debug from 'debug';
 const debugLog = debug('ndserve:server');
 import http from 'http';
-
+import * as dotenv from "dotenv"
 /**
  * Get port from environment and store in Express.
  */
+dotenv.config()
 
 const port = normalizePort(process.env.PORT || '3000');
 app.set('port', port);
