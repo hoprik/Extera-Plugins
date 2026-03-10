@@ -1,16 +1,42 @@
 import * as cheerio from 'cheerio';
 import * as fuzzball from 'fuzzball';
 import * as punycode from 'punycode';
-import {ProxyAgent, fetch} from 'undici'
+import { ProxyAgent, fetch } from 'undici';
 import axios from 'axios';
 // @ts-ignore
 import { wrapper } from 'axios-cookiejar-support';
 import { CookieJar } from 'tough-cookie';
+let pLimitModule: any;
+let pRetryModule: any;
+
+async function getPLimit() {
+    if (!pLimitModule) {
+        pLimitModule = await import('p-limit');
+    }
+    return pLimitModule.default;
+}
+
+async function getPRetry() {
+    if (!pRetryModule) {
+        pRetryModule = await import('p-retry');
+    }
+    return pRetryModule.default;
+}
 
 const jar = new CookieJar();
 // @ts-ignore
 const client = wrapper(axios.create({ jar, withCredentials: true }));
 
+// ========== Прокси (создаётся один раз) ==========
+let proxyAgent: ProxyAgent | undefined;
+if (process.env.PROXY_HOST) {
+    proxyAgent = new ProxyAgent({
+        uri: `http://${process.env.PROXY_HOST}:${process.env.PROXY_PORT}`,
+    });
+    process.once('exit', () => proxyAgent?.close());
+}
+
+// ========== Вспомогательные функции ==========
 function parseDuration(durationStr: string): number {
     const parts = durationStr.trim().split(':');
     if (parts.length === 2) {
@@ -33,39 +59,11 @@ function toSlug(input: string): string {
 }
 
 const cyrillicToLatin: Record<string, string> = {
-    'а': 'a',
-    'б': 'b',
-    'в': 'v',
-    'г': 'g',
-    'д': 'd',
-    'е': 'e',
-    'ё': 'yo',
-    'ж': 'zh',
-    'з': 'z',
-    'и': 'i',
-    'й': 'y',
-    'к': 'k',
-    'л': 'l',
-    'м': 'm',
-    'н': 'n',
-    'о': 'o',
-    'п': 'p',
-    'р': 'r',
-    'с': 's',
-    'т': 't',
-    'у': 'u',
-    'ф': 'f',
-    'х': 'kh',
-    'ц': 'ts',
-    'ч': 'ch',
-    'ш': 'sh',
-    'щ': 'shch',
-    'ъ': '',
-    'ы': 'y',
-    'ь': '',
-    'э': 'e',
-    'ю': 'yu',
-    'я': 'ya'
+    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo',
+    'ж': 'zh', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm',
+    'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
+    'ф': 'f', 'х': 'kh', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'shch',
+    'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya'
 };
 
 function toLatin(text: string): string {
@@ -107,30 +105,19 @@ function authorMatchesArtists(author: string, artists: Array<{ name: string }> |
         return lowerAuthorParts.some((part, index) => {
             if (part.length < 2) return false;
             const latinPart = lowerLatinAuthorParts[index];
-            // Используем partial_ratio для поиска подстроки
             return fuzzball.partial_ratio(artistNameLower, part) > 70
                 || fuzzball.partial_ratio(artistNameLatinLower, latinPart) > 70;
         });
     });
 }
 
+// ========== Функция fetchTracksFromUrl с retry ==========
 async function fetchTracksFromUrl(url: string): Promise<Array<{
     artist: string;
     name: string;
     url: string;
     durationSec: number
 }> | null> {
-    let proxyAgent: ProxyAgent | undefined = undefined
-    if (process.env.PROXY_HOST) {
-        const proxy = {
-            'host': process.env.PROXY_HOST,
-            'port': process.env.PROXY_PORT,
-        };
-        proxyAgent = new ProxyAgent({
-            uri: `http://${proxy.host}:${proxy.port}`,
-        });
-    }
-
     const headers = new Headers({
         'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
         'accept-language': 'en-US,en;q=0.9,ru;q=0.8',
@@ -148,15 +135,29 @@ async function fetchTracksFromUrl(url: string): Promise<Array<{
         'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
     });
 
+    const fetchWithRetry = async (): Promise<Response> => {
+        const pRetry = await getPRetry();
+        return pRetry(
+            async () => {
+                const res = await fetch(url, { headers, dispatcher: proxyAgent });
+                if (!res.ok) {
+                    throw new Error(`HTTP error ${res.status}`);
+                }
+                return res;
+            },
+            {
+                retries: 2,
+                factor: 2,
+                minTimeout: 1000,
+                onFailedAttempt: (error: any) => {
+                    console.log(`Fetch failed for ${url}, attempt ${error.attemptNumber}. ${error.message}`);
+                },
+            }
+        );
+    };
+
     try {
-        const response = await fetch(url, {headers, dispatcher: proxyAgent});
-        if (proxyAgent) {
-            proxyAgent.close()
-        }
-        if (!response.ok) {
-            console.error(`HTTP error ${response.status} for ${url}`);
-            return null;
-        }
+        const response = await fetchWithRetry();
         const html = await response.text();
         const $ = cheerio.load(html);
         const tracks: Array<{ artist: string; name: string; url: string; durationSec: number }> = [];
@@ -174,17 +175,18 @@ async function fetchTracksFromUrl(url: string): Promise<Array<{
 
             if (artist && trackName && downloadUrl) {
                 const durationSec = parseDuration(durationStr);
-                tracks.push({artist, name: trackName, url: downloadUrl, durationSec});
+                tracks.push({ artist, name: trackName, url: downloadUrl, durationSec });
             }
         });
 
         return tracks;
     } catch (error) {
-        console.error('Fetch failed:', error);
+        console.error(`Fetch failed for ${url} after retries:`, error);
         return null;
     }
 }
 
+// ========== YouTube / Chosic ==========
 async function getTrackFromYoutube(
     { name, author }: { name: string; author: string }
 ): Promise<{ service: string; url: string } | null> {
@@ -199,7 +201,6 @@ async function getTrackFromYoutube(
     };
 
     try {
-        // Проверяем наличие кук, если их нет — делаем handshake
         const cookies = await jar.getCookies(baseUrl);
         if (cookies.length === 0) {
             await client.post(`${baseUrl}/api/tools/handshake/`, {}, { headers });
@@ -211,17 +212,12 @@ async function getTrackFromYoutube(
         });
 
         if (response.data) {
-            // Очищаем ID от лишних кавычек, если они есть
             const videoId = String(response.data).replace(/"/g, '');
-            return {
-                service: "youtube",
-                url: videoId
-            };
+            return { service: "youtube", url: videoId };
         }
         return null;
     } catch (error: any) {
         console.error("Ошибка Chosic API:", error.response?.status, error.response?.data);
-        // Если получили 401, очищаем куки для следующей попытки
         if (error.response?.status === 401) {
             await jar.removeAllCookies();
         }
@@ -237,6 +233,17 @@ function normalizeText(text: string): string {
     return text.replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
+let limiter: any;
+async function getLimiter() {
+    if (!limiter) {
+        const pLimit = await getPLimit();
+        limiter = pLimit(5);
+    }
+    return limiter;
+}
+
+
+// ========== Основная функция поиска (без кеша) ==========
 export async function findTrackSong({
                                         name,
                                         author,
@@ -245,7 +252,7 @@ export async function findTrackSong({
     name: string;
     author: string;
     expectedDurationSec?: number
-}): Promise< { service: string; url: string;} | null> {
+}): Promise<{ service: string; url: string; } | null> {
     const originalName = name;
     const originalAuthor = author;
 
@@ -285,11 +292,30 @@ export async function findTrackSong({
     let bestTrack: { artist: string; name: string; url: string; durationSec: number } | null = null;
     let bestDiff = Infinity;
 
-    for (const url of urls) {
-        console.log(`Trying URL: ${url}`);
-        const tracks = await fetchTracksFromUrl(url);
-        if (!tracks || tracks.length === 0) continue;
+    // Параллельные запросы с ограничением (максимум 5 одновременно)
+    const limit = await getLimiter()
+    const fetchPromises = urls.map(url =>
+        limit(async () => {
+            const tracks = await fetchTracksFromUrl(url);
+            return { url, tracks };
+        })
+    );
 
+    const results = await Promise.allSettled(fetchPromises);
+
+    for (const result of results) {
+        if (result.status === 'rejected') {
+            console.error('Unexpected error in fetch promise:', result.reason);
+            continue;
+        }
+        const { url, rawTracks } = result.value;
+        const tracks = rawTracks as {artist: string, name: string, url: string, durationSec: number}[]
+        if (!tracks || tracks.length === 0) {
+            console.log(`No tracks or fetch failed for ${url}`);
+            continue;
+        }
+
+        // Отладка (можно убрать в production)
         tracks.forEach(t => {
             const normName = normalizeText(t.name);
             const normArtist = normalizeText(t.artist);
@@ -349,18 +375,18 @@ export async function findTrackSong({
 
     if (bestTrack) {
         console.log(`Selected track: ${bestTrack.name} – ${bestTrack.artist} (${bestTrack.durationSec}s)`);
-        return {service: "skysound", url: bestTrack.url};
+        return { service: "skysound", url: bestTrack.url };
     }
 
-    console.log('No tracks matched the criteria');
+    console.log('No tracks matched the criteria, trying YouTube...');
     for (const authorVariant of authorVariants) {
         const slugAuthor = toSlug(authorVariant);
-        const res = await getTrackFromYoutube({name, author: slugAuthor})
-        console.log(res)
-        if (res){
-            return res
+        const res = await getTrackFromYoutube({ name, author: slugAuthor });
+        console.log(res);
+        if (res) {
+            return res;
         }
     }
 
-    return null
+    return null;
 }
