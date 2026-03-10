@@ -74,6 +74,20 @@ export async function youtubeDownload(
 
     return true
 }
+
+export async function getTrackInFolder(name: string, author: string){
+    const hash = createHash("md5").update(name + author).digest('hex');
+
+    const downloadPath = path.join("downloaded", `${hash}.mp3`)
+    const outputPath = path.join("songs", `${hash}.mp3`);
+    try {
+        await fs.access(outputPath);
+        return hash;
+    } catch {
+        return null
+    }
+}
+
 export async function getSongByUrl(songUrl: { service: string; url: string; } , name: string, author: string) {
     await createFolders()
 
