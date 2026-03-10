@@ -25,14 +25,22 @@ async function createFolders() {
     }
 }
 
-export async function skySoundDownload(soundUrl: string, path: string, name: string, author: string, outputPath: string){
-    const res = await downloadFile(soundUrl, path)
-    if (!res){
-        return false
+async function skySoundDownload(soundUrl: string, outputPath: string, name: string, author: string): Promise<boolean> {
+    const response = await fetch(soundUrl);
+    if (!response.ok || !response.body) return false;
+
+    // Если файл уже MP3, можно просто сохранить поток (метаданные добавляются через ffmpeg или отдельно)
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('audio/mpeg')) {
+        const fileStream = createWriteStream(outputPath);
+        await pipeline(Readable.fromWeb(response.body as any), fileStream);
     }
+
+    // Потоковая конвертация через ffmpeg
     await new Promise<void>((resolve, reject) => {
-        const command = ffmpeg(path)
-            .audioBitrate(128) // сжатие до 128 kbps
+        const inputStream = Readable.fromWeb(response.body as any);
+        const command = ffmpeg(inputStream)
+            .audioBitrate(128)
             .audioCodec('libmp3lame')
             .outputOptions('-id3v2_version', '3')
             .outputOptions('-metadata', `title=${name}`)
@@ -42,9 +50,8 @@ export async function skySoundDownload(soundUrl: string, path: string, name: str
 
         command.save(outputPath);
     });
-    return true
+    return true;
 }
-
 export async function youtubeDownload(
     videoId: string,
     outputPath: string,
@@ -102,7 +109,7 @@ export async function getSongByUrl(songUrl: { service: string; url: string; } , 
     }
 
     if (songUrl.service == "skysound"){
-        const res = await skySoundDownload(songUrl.url, downloadPath, name, author, outputPath)
+        const res = await skySoundDownload(songUrl.url, outputPath, name, author)
         if (!res){
             return null
         }

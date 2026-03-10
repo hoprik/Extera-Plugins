@@ -66,17 +66,13 @@ router.post('/getTrack', async (req: Request, res: Response, next: NextFunction)
     return createSuccess(res, data)
 });
 
-router.get("/download/:songId", async (req: Request, res: Response)=>{
-    const songId = req.params.songId as string
-    const downloadFile = await downloadSong(songId)
-    if (!downloadFile){
-        return createError(res, "Файл не найден")
+router.get("/download/:songId", async (req: Request, res: Response) => {
+    const songId = req.params.songId as string;
+    const downloadFile = await downloadSong(songId);
+    if (!downloadFile) {
+        return createError(res, "Файл не найден");
     }
-    res.download(downloadFile, songId+".mp3", (err)=>{
-        if (err) {
-            createError(res, "Не удалось скачать", err)
-        }
-    })
-})
+    res.download(downloadFile, songId + ".mp3");
+});
 
 export default router;
