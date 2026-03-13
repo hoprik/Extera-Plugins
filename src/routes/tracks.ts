@@ -4,8 +4,6 @@ import {reqGetInfoTack} from "../type/apiTypes";
 import * as fuzzball from "fuzzball";
 import {findTrack, getAlbum} from "../lib/statsfm";
 import {Track} from "../type/types";
-import {findTrackSong} from "../lib/getSongUrl";
-import {downloadSong, getSongByUrl, getTrackInFolder} from "../lib/downloader";
 
 const router: Router = Router();
 
@@ -32,19 +30,6 @@ router.post('/getTrack', async (req: Request, res: Response, next: NextFunction)
         return createSuccess(res, trackInfo)
     }
 
-    let songUrl: string | null = null
-    const hashFolder = await getTrackInFolder(track.name, track.artists.map(a => a.name).join(", "))
-    if (!hashFolder){
-        const findSongLink = await findTrackSong({name: track.name, author: track.artists.map(a => a.name).join(", "), expectedDurationSec: track.durationMs / 1000})
-        if (findSongLink){
-            const hash = await getSongByUrl(findSongLink, track.name, track.artists.map(a => a.name).join(", "))
-            songUrl = req.protocol + '://' + req.get('host') + "/api/download/" + hash
-        }
-    }else{
-        songUrl = req.protocol + '://' + req.get('host') + "/api/download/" + hashFolder
-    }
-
-
 
     const data: Track = {
         name: track.name,
@@ -60,19 +45,9 @@ router.post('/getTrack', async (req: Request, res: Response, next: NextFunction)
             coverUrl: track.albums[0].image,
             releaseDate: album.pageProps.album.releaseDate
         },
-        songUrl: songUrl
     }
 
     return createSuccess(res, data)
-});
-
-router.get("/download/:songId", async (req: Request, res: Response) => {
-    const songId = req.params.songId as string;
-    const downloadFile = await downloadSong(songId);
-    if (!downloadFile) {
-        return createError(res, "Файл не найден");
-    }
-    res.download(downloadFile, songId + ".mp3");
 });
 
 export default router;
