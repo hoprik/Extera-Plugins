@@ -1,4 +1,4 @@
-package ru.hoprik.pillmusic.controller;
+package ru.hoprik.pillkstati.controller;
 
 import okhttp3.OkHttpClient;
 import okhttp3.Request;

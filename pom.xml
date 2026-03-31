@@ -6,7 +6,7 @@
 
     <modelVersion>4.0.0</modelVersion>
     <groupId>ru.hoprik</groupId>
-    <artifactId>pillmusic</artifactId>
+    <artifactId>pillkstati</artifactId>
     <version>1.0-SNAPSHOT</version>
 
     <properties>
@@ -44,7 +44,7 @@
                 <version>3.3.0</version>
                 <configuration>
                     <includes>
-                        <include>ru/hoprik/pillmusic/**</include>
+                        <include>ru/hoprik/pillkstati/**</include>
                     </includes>
                 </configuration>
             </plugin>
@@ -80,7 +80,7 @@
                             <arguments>
                                 <argument>-cp</argument>
                                 <argument>target/classes</argument>
-                                <argument>ru.hoprik.pillmusic.tools.BuildPythonGenerator</argument>
+                                <argument>ru.hoprik.pillkstati.tools.BuildPythonGenerator</argument>
                             </arguments>
                         </configuration>
                     </execution>

@@ -1,15 +1,14 @@
-package ru.hoprik.pillmusic;
+package ru.hoprik.pillkstati;
 
 import android.content.Context;
 import android.graphics.Color;
 import com.exteragram.messenger.pillstack.core.PillRegistry;
-import com.exteragram.messenger.pillstack.core.PillStackConfig;
 import com.exteragram.messenger.pillstack.ui.pills.BasePill;
 import com.exteragram.messenger.plugins.PluginsController;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
 import org.telegram.ui.ActionBar.Theme;
-import ru.hoprik.pillmusic.pill.MusicPill;
+import ru.hoprik.pillkstati.pill.MusicPill;
 
 
 import java.util.HashMap;
@@ -28,19 +27,19 @@ public class PillMusic {
     }
 
     public void register() {
-        PillRegistry.register(new PillRegistry.PillInfo(71369790, "Stats FM", R.drawable.files_music, Color.parseColor("#FFEFA612"), Color.parseColor("#FFE77512"), new PillRegistry.PillCreator() {
+        PillRegistry.register(new PillRegistry.PillInfo(71369791, "Кстати FM", R.drawable.files_music, Color.parseColor("#FFEFA612"), Color.parseColor("#FFE77512"), new PillRegistry.PillCreator() {
             @Override
             public BasePill create(Context context, Theme.ResourcesProvider resourcesProvider) {
                 return new MusicPill(context, resourcesProvider);
             }
         }));
-        if (PluginsController.getInstance().getPluginSettingBoolean("pill_stats_fm", "enable_pill", true)){
-            PillRegistry.activatePill(71369790);
+        if (PluginsController.getInstance().getPluginSettingBoolean("pill_kstati", "enable_pill", true)){
+            PillRegistry.activatePill(71369791);
         }
     }
 
     public void unregister() {
-        PillRegistry.unregister(71369790);
+        PillRegistry.unregister(71369791);
     }
 
     public void setLocalizations(Map<String, Map<String, String>> localizations) {

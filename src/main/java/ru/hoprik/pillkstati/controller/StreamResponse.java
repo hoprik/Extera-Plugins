@@ -1,4 +1,4 @@
-package ru.hoprik.pillmusic.controller;
+package ru.hoprik.pillkstati.controller;
 
 import com.google.gson.annotations.SerializedName;
 import java.util.List;

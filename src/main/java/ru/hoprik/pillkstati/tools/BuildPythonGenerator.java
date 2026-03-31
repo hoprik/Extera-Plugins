@@ -1,4 +1,4 @@
-package ru.hoprik.pillmusic.tools;
+package ru.hoprik.pillkstati.tools;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;

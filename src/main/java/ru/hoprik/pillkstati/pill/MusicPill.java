@@ -1,4 +1,4 @@
-package ru.hoprik.pillmusic.pill;
+package ru.hoprik.pillkstati.pill;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
@@ -26,9 +26,8 @@ import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.ScaleStateListAnimator;
 import org.telegram.ui.LaunchActivity;
 
-import ru.hoprik.pillmusic.PillMusic;
-import ru.hoprik.pillmusic.controller.MusicInfo;
-import ru.hoprik.pillmusic.controller.StreamResponse;
+import ru.hoprik.pillkstati.PillMusic;
+import ru.hoprik.pillkstati.controller.StreamResponse;
 
 import java.util.stream.Collectors;
 
@@ -52,7 +51,6 @@ public class MusicPill extends BasePill implements NotificationCenter.Notificati
 
     public MusicPill(Context context, Theme.ResourcesProvider resourcesProvider) {
         super(context, resourcesProvider);
-        refreshUsernameIfChanged();
 
         layout = new LinearLayout(context);
         layout.setOrientation(LinearLayout.HORIZONTAL);
@@ -106,66 +104,13 @@ public class MusicPill extends BasePill implements NotificationCenter.Notificati
     @Override
     public void onUpdateData(boolean force) {
         if (requestInFlight) return;
+        String latestUsername = PluginsController.getInstance().getPluginSettingString("pill_kstati", "username", "");
 
-        refreshUsernameIfChanged();
-        if (TextUtils.isEmpty(authToken)) {
-            setErrorState(false);
-            return;
-        }
-
-        if (!force && cachedResponse != null && !isRefreshDue()) {
-            setData(cachedResponse, false);
-            return;
-        }
-
-        requestInFlight = true;
-        if (force) animateSizeChange();
-        startLoading();
-
-        new Thread(() -> {
-            try {
-                StreamResponse response = new MusicInfo().fetchCurrentStream(authToken);
-                AndroidUtilities.runOnUIThread(() -> {
-                    requestInFlight = false;
-                    if (response != null && response.getItem() == null) {
-                        setErrorState(PillMusic.getInstance().getString("turn_on_player"), true);
-                    } else if (response != null && response.getItem() != null && response.getItem().isPlaying()) {
-                        cachedResponse = response;
-                        setData(response, true);
-                        markDataUpdated();
-                    } else {
-                        setErrorState(true);
-                    }
-                });
-            } catch (Exception e) {
-                e.printStackTrace();
-                AndroidUtilities.runOnUIThread(() -> {
-                    requestInFlight = false;
-                    setErrorState(true);
-                });
-            }
-        }).start();
+        textView.setText(latestUsername);
     }
 
     private long getCooldown(){
-        String cooldown = PluginsController.getInstance().getPluginSettingString("pill_stats_fm", "cooldown", "10");
-        int cd = Integer.parseInt(cooldown);
-        if (cooldown == null || cd <= 0) {
-            return cd*1000;
-        }
         return 10*1000;
-    }
-
-    private void refreshUsernameIfChanged() {
-        String latestUsername = PluginsController.getInstance().getPluginSettingString("pill_stats_fm", "username", "");
-        if (latestUsername == null) {
-            latestUsername = "";
-        }
-
-        if (!TextUtils.equals(authToken, latestUsername)) {
-            authToken = latestUsername;
-            cachedResponse = null;
-        }
     }
 
     private void setData(StreamResponse response, boolean animated) {
@@ -228,9 +173,9 @@ public class MusicPill extends BasePill implements NotificationCenter.Notificati
                     .setDrawScrim(true)
                     .setDimAlpha(1);
 
-            if (PluginsController.getInstance().plugins.get("pill_stats_fm") != null) {
+            if (PluginsController.getInstance().plugins.get("pill_kstati") != null) {
                 options.add(R.drawable.msg_plugins, PillMusic.getInstance().getString("plugin_settings"), () ->
-                        fragment.presentFragment(new PluginSettingsActivity(PluginsController.getInstance().plugins.get("pill_stats_fm"))));
+                        fragment.presentFragment(new PluginSettingsActivity(PluginsController.getInstance().plugins.get("pill_kstati"))));
             }
 
             options
