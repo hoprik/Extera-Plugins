@@ -7,21 +7,20 @@ import org.telegram.tgnet.TLRPC;
 
 public class MusicInfo {
     private boolean shouldUpdate;
-    private String currentTitle = "";
-    private String currentAuthor = "";
+    private String currentTitle;
+    private String currentAuthor;
     private int currentDuration;
     private int audioProgress;
-    private String timeString = "";
-    private String audioProgressString = "";
+    private String timeString;
+    private String audioProgressString;
     private MessageObject messageObject;
 
-    private String lastTitle = "";
-    private String lastAuthor = "";
+    private String lastTitle;
+    private String lastAuthor;
 
-    public MusicInfo() {
-        update();
+    public MusicInfo(MessageObject object) {
+        getTrackInfo(object);
     }
-
 
     public boolean isMusic(MessageObject messageObject){
         try{
@@ -35,8 +34,7 @@ public class MusicInfo {
         return false;
     }
 
-    public void update() {
-        MessageObject playingMessageObject = MediaController.getInstance().getPlayingMessageObject();
+    private void getTrackInfo(MessageObject playingMessageObject){
         if (playingMessageObject == null || !isMusic(playingMessageObject)) {
             this.shouldUpdate = false;
             this.currentTitle = "";
@@ -58,7 +56,6 @@ public class MusicInfo {
             if (document != null && document.attributes != null) {
                 for (int i = 0; i < document.attributes.size(); i++) {
                     TLRPC.DocumentAttribute attribute = document.attributes.get(i);
-                    // Проверяем, является ли атрибут аудио
                     if (attribute.getClass().getSimpleName().equals("TL_documentAttributeAudio")) {
                         calculatedDuration = (int) attribute.duration;
                         break;
@@ -69,7 +66,7 @@ public class MusicInfo {
             calculatedDuration = playingMessageObject.audioProgressSec;
         }
 
-        int totalDuration = playingMessageObject.audioPlayerDuration;
+        int totalDuration = (int) playingMessageObject.getDuration();
 
         this.timeString = AndroidUtilities.formatLongDuration(calculatedDuration);
         this.audioProgressString = AndroidUtilities.formatLongDuration(totalDuration);
@@ -90,6 +87,10 @@ public class MusicInfo {
 
         this.currentTitle = newTitle;
         this.currentAuthor = newAuthor;
+    }
+
+    public void update(MessageObject playingMessageObject) {
+        getTrackInfo(playingMessageObject);
     }
 
     public boolean isShouldUpdate() {

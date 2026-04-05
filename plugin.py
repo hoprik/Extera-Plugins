@@ -6,12 +6,14 @@
 """
 
 import base64
+import hashlib
 import sys
 from android.app import Dialog
 from java.lang import Boolean, Integer, String
 from java.nio import ByteBuffer
 from java.util import HashMap  # <--- Импортируем Java HashMap
 from dalvik.system import InMemoryDexClassLoader
+from org.telegram.messenger.browser import Browser
 
 from base_plugin import BasePlugin, MenuItemData, MenuItemType, MethodHook
 from client_utils import get_last_fragment, run_on_queue
@@ -22,7 +24,7 @@ from com.exteragram.messenger.plugins import PluginsController
 from org.telegram.messenger import MediaController, LocaleController, ApplicationLoader
 from org.telegram.ui.ActionBar import ActionBarMenuItem, BaseFragment
 from org.telegram.ui.Components import AudioPlayerAlert
-from ui.settings import Header, Switch
+from ui.settings import Header, Switch, Text
 
 import hashlib
 import json
@@ -108,7 +110,7 @@ __id__ = "fullscreen_music_player"
 __name__ = "Music Player"
 __description__ = "Full screen music player. Если вы обновляете плагин, перезапустите Telegram."
 __author__ = "@hoprik"
-__version__ = "1.1"
+__version__ = "1.2"
 __icon__ = "rottenprince_by_FStikBot/0"
 __min_version__ = "11.12.0"
 
@@ -125,6 +127,7 @@ class LocalizationManager:
         "ru": {
             "player": "Плеер",
             "no_music": "Включите музыку",
+            "now_playing": "Сейчас играет",
             "start_error": "Ошибка запуска",
             "saved": "Музыка сохранена в избранное",
             "downloaded": "Музыка была скачана",
@@ -137,7 +140,7 @@ class LocalizationManager:
             "settings_enable_feature_download": "Скачивание трэков",
             "settings_enable_feature_share": "Поделиться трэком",
             "settings_enable_feature_save": "Сохранение трэка",
-            "settings_enable_background_dominant": "Доминантные цвета",
+            "settings_enable_feature_save_profile": "Сохранение трэка в профиль",
             "settings_enable_enter_audioplayer": "Заменить мини-плеер",
             "settings_enable_enter_subitem": "Добавить элемент в мини-плеер",
             "settings_enable_enter_profile": "Добавить элемент в профиль",
@@ -148,6 +151,7 @@ class LocalizationManager:
         "en": {
             "player": "Player",
             "no_music": "Play some music",
+            "now_playing": "Now playing",
             "start_error": "Launch error",
             "saved": "Added to favorites",
             "downloaded": "Track downloaded",
@@ -160,7 +164,6 @@ class LocalizationManager:
             "settings_enable_feature_download": "Track downloading",
             "settings_enable_feature_share": "Share track",
             "settings_enable_feature_save": "Save track",
-            "settings_enable_background_dominant": "Dominant colors",
             "settings_enable_enter_audioplayer": "Replace mini-player",
             "settings_enable_enter_subitem": "Add element to mini-player",
             "settings_enable_enter_profile": "Add element to profile",
@@ -423,13 +426,32 @@ class PlayerPlugin(BasePlugin):
     def dex_load(self):
         global MusicPlayer
         try:
+            # Декодируем один раз и сохраняем байты
+            dex_bytes = base64.b64decode(dex_data)
+        except Exception as e:
+            self.log(f"Failed to decode dex_data: {e}")
+            return
+
+        # Проверяем хеш
+        try:
+            computed_hash = hashlib.sha256(dex_bytes).hexdigest()
+            if computed_hash != dex_hash:
+                self.log(f"FATAL: dex hash mismatch! Expected {dex_hash}, got {computed_hash}. Plugin will not load.")
+                return
+            else:
+                self.log("dex hash check passed")
+        except Exception as e:
+            self.log(f"Error computing dex hash: {e}")
+            return
+
+        # Дальше загрузка с уже имеющимися байтами
+        try:
             clazz = find_class(PLAYER_CLASS_NAME).getClass()
             self.log(f"Found existing class: {PLAYER_CLASS_NAME}")
         except:
             self.log(f"Class not found, loading DEX...")
-            dex_code = base64.b64decode(dex_data)
             loader = InMemoryDexClassLoader(
-                ByteBuffer.wrap(dex_code),
+                ByteBuffer.wrap(dex_bytes),   # используем dex_bytes
                 ApplicationLoader.applicationContext.getClassLoader()
             )
             clazz = loader.loadClass(PLAYER_CLASS_NAME)
@@ -458,9 +480,8 @@ class PlayerPlugin(BasePlugin):
                    icon="msg_settings"),
             Switch(key="enable_feature_save", text=localizer.get_string("settings_enable_feature_save"), default=True,
                    icon="msg_settings"),
-            Header(localizer.get_string("settings_background")),
-            Switch(key="enable_background_dominant", text=localizer.get_string("settings_enable_background_dominant"),
-                   default=True, icon="msg_settings"),
+            Switch(key="enable_feature_save_profile", text=localizer.get_string("settings_enable_feature_save_profile"), default=True,
+                   icon="msg_settings"),
             Header(localizer.get_string("settings_enter")),
             Switch(key="enable_audioplayer", text=localizer.get_string("settings_enable_enter_audioplayer"),
                    default=False, icon="msg_settings"),
@@ -478,7 +499,12 @@ class PlayerPlugin(BasePlugin):
             Header(localizer.get_string("settings_addons")),
             Switch(key="enable_lyrics", text=localizer.get_string("settings_enable_addon_lyrics"),
                    subtext=localizer.get_string("settings_enable_addon_lyrics"), default=False, icon="msg_settings"),
+            Text(text="Скачать плагин lyrics", on_click=self._open_plugin_lyrics)
         ]
+
+    def _open_plugin_lyrics(self, view):
+        if MusicPlayer:
+            MusicPlayer.openBrowser(get_last_fragment())
 
     def _reload_menu_items(self):
         self.remove_settings_menu_items()

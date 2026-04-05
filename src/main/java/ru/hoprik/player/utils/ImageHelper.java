@@ -19,10 +19,10 @@ public class ImageHelper {
     }
 
     public static int getDominantColor(Bitmap bitmap) {
-       if (bitmap != null){
-           return AndroidUtilities.getDominantColor(bitmap);
-       }
-       return Color.parseColor("#525252");
+        if (bitmap != null){
+            return AndroidUtilities.getDominantColor(bitmap);
+        }
+        return Color.parseColor("#525252");
     }
 
     public static int darkenColor(int color, float factor) {
@@ -88,7 +88,11 @@ public class ImageHelper {
                         object
                 );
             }else{
-                imageView.setImageResource(R.drawable.nocover);
+                Bitmap albumArtPlaceholder = Bitmap.createBitmap(AndroidUtilities.dp(102), AndroidUtilities.dp(102), Bitmap.Config.ARGB_8888);
+                Drawable placeholder = imageView.getContext().getDrawable(R.drawable.nocover);
+                placeholder.setBounds(0, 0, albumArtPlaceholder.getWidth(), albumArtPlaceholder.getHeight());
+                placeholder.draw(new Canvas(albumArtPlaceholder));
+                imageView.setImage(null, null, albumArtPlaceholder, imageView);
                 if (isBackground){
                     imageView.setAspectFit(true);
                 }

@@ -12,6 +12,8 @@ import android.text.TextUtils;
 import android.widget.FrameLayout;
 import androidx.core.content.FileProvider;
 import org.telegram.messenger.*;
+import org.telegram.tgnet.ConnectionsManager;
+import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
@@ -217,4 +219,122 @@ public class ControlsHelpers {
         parentActivity.presentFragment(fragment);
     }
 
+
+    public static void saveToProfile(MessageObject messageObject, boolean save, Runnable done, boolean triedFileRef, BaseFragment parentActivity) {
+        final TLRPC.Document document = messageObject.getDocument();
+        if (document == null) {
+            return;
+        }
+        final long documentId = document.id;
+        final TLRPC.TL_account_saveMusic req = new TLRPC.TL_account_saveMusic();
+        req.unsave = !save;
+        req.id = new TLRPC.TL_inputDocument();
+        req.id.id = documentId;
+        req.id.access_hash = document.access_hash;
+        req.id.file_reference = document.file_reference;
+        if (req.id.file_reference == null) {
+            req.id.file_reference = new byte[0];
+        }
+        ConnectionsManager.getInstance(UserConfig.selectedAccount).sendRequest(req, (res, err) -> {
+            if (err != null && FileRefController.isFileRefError(err.text)) {
+                if (triedFileRef || messageObject.getId() < 0) {
+                    AndroidUtilities.runOnUIThread(() -> {
+                        BulletinFactory.of((FrameLayout) parentActivity.fragmentView, parentActivity.getResourceProvider())
+                                .showForError(err);
+                    });
+                    return;
+                }
+                if (messageObject.getDialogId() >= 0) {
+                    final int msg_id = messageObject.getId();
+                    final TLRPC.TL_messages_getMessages fileRefReq = new TLRPC.TL_messages_getMessages();
+                    fileRefReq.id.add(msg_id);
+                    ConnectionsManager.getInstance(UserConfig.selectedAccount).sendRequest(fileRefReq, (res1, err1) -> {
+                        if (res1 instanceof TLRPC.messages_Messages) {
+                            final TLRPC.messages_Messages r = (TLRPC.messages_Messages) res1;
+                            TLRPC.Message message = null;
+                            for (int i = 0; i < r.messages.size(); ++i) {
+                                if (((TLRPC.Message) r.messages.get(i)).id == msg_id) {
+                                    message = (TLRPC.Message) r.messages.get(i);
+                                    break;
+                                }
+                            }
+                            if (message != null) {
+                                saveToProfile(new MessageObject(UserConfig.selectedAccount, message, false, true), save, done, true, parentActivity);
+                            } else {
+                                AndroidUtilities.runOnUIThread(() -> {
+                                    BulletinFactory.of((FrameLayout) parentActivity.fragmentView, parentActivity.getResourceProvider())
+                                            .createErrorBulletin(LocaleController.formatString(R.string.UnknownErrorCode, "CLIENT_MESSAGE_NOT_FOUND"))
+                                            .show();
+                                });
+                            }
+                        } else if (err1 != null) {
+                            AndroidUtilities.runOnUIThread(() -> {
+                                BulletinFactory.of((FrameLayout) parentActivity.fragmentView, parentActivity.getResourceProvider())
+                                        .showForError(err1);
+                            });
+                        }
+                    });
+                } else {
+                    final int msg_id = messageObject.getId();
+                    final TLRPC.TL_channels_getMessages fileRefReq = new TLRPC.TL_channels_getMessages();
+                    fileRefReq.channel = MessagesController.getInstance(UserConfig.selectedAccount).getInputChannel(-messageObject.getDialogId());
+                    fileRefReq.id.add(msg_id);
+                    ConnectionsManager.getInstance(UserConfig.selectedAccount).sendRequest(fileRefReq, (res1, err1) -> {
+                        if (res1 instanceof TLRPC.messages_Messages) {
+                            final TLRPC.messages_Messages r = (TLRPC.messages_Messages) res1;
+                            TLRPC.Message message = null;
+                            for (int i = 0; i < r.messages.size(); ++i) {
+                                if (((TLRPC.Message) r.messages.get(i)).id == msg_id) {
+                                    message = (TLRPC.Message) r.messages.get(i);
+                                    break;
+                                }
+                            }
+                            if (message != null) {
+                                saveToProfile(new MessageObject(UserConfig.selectedAccount, message, false, true), save, done, true, parentActivity);
+                            } else {
+                                AndroidUtilities.runOnUIThread(() -> {
+                                    BulletinFactory.of((FrameLayout) parentActivity.fragmentView, parentActivity.getResourceProvider())
+                                            .createErrorBulletin(LocaleController.formatString(R.string.UnknownErrorCode, "CLIENT_MESSAGE_NOT_FOUND"))
+                                            .show();
+                                });
+                            }
+                        } else if (err1 != null) {
+                            AndroidUtilities.runOnUIThread(() -> {
+                                BulletinFactory.of((FrameLayout) parentActivity.fragmentView, parentActivity.getResourceProvider())
+                                        .showForError(err1);
+                            });
+                        }
+                    });
+                }
+                return;
+            } else if (err != null) {
+                AndroidUtilities.runOnUIThread(() -> {
+                    BulletinFactory.of((FrameLayout) parentActivity.fragmentView, parentActivity.getResourceProvider())
+                            .showForError(err);
+                });
+            }
+
+            AndroidUtilities.runOnUIThread(() -> {
+                MessagesController.getInstance(UserConfig.selectedAccount)
+                        .getSavedMusicIds()
+                        .update(documentId, save);
+                final long selfId = UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId();
+                final TLRPC.UserFull userInfo = MessagesController.getInstance(UserConfig.selectedAccount).getUserFull(selfId);
+                if (userInfo != null) {
+                    if (save) {
+                        userInfo.flags2 |= TLObject.FLAG_21;
+                        userInfo.saved_music = document;
+                    } else if (userInfo.saved_music != null && userInfo.saved_music.id == documentId) {
+                        userInfo.flags2 &=~ TLObject.FLAG_21;
+                        userInfo.saved_music = null;
+                    }
+                    MessagesStorage.getInstance(UserConfig.selectedAccount).updateUserInfo(userInfo, true);
+                    NotificationCenter.getInstance(UserConfig.selectedAccount).postNotificationName(NotificationCenter.profileMusicUpdated, selfId);
+                }
+                if (done != null) {
+                    done.run();
+                }
+            });
+        });
+    }
 }
