@@ -7,16 +7,19 @@ import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Handler;
 import android.os.Looper;
+import android.view.View;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import org.telegram.messenger.ImageReceiver;
+import org.telegram.messenger.MediaController;
+import org.telegram.ui.ActionBar.SimpleTextView;
 import org.telegram.ui.Components.BackupImageView;
 import ru.hoprik.player.MusicPlayer;
 
 public class UpdateManager {
 
     private MusicInfo info;
-    private TextView songNameView;
+    private SimpleTextView songNameView;
     private TextView authorName;
     private BackupImageView avatarView;
     private BackupImageView backgroundView;
@@ -30,7 +33,7 @@ public class UpdateManager {
     private Runnable updateRunnable;
     private boolean isRunning = false;
 
-    public UpdateManager(MusicInfo info, TextView songNameView, TextView authorName, BackupImageView avatarView, BackupImageView backgroundView, GradientDrawable overlayColor, TextView currentDurationView, TextView audioTimeView, SeekBar seekBar) {
+    public UpdateManager(MusicInfo info, SimpleTextView songNameView, TextView authorName, BackupImageView avatarView, BackupImageView backgroundView, GradientDrawable overlayColor, TextView currentDurationView, TextView audioTimeView, SeekBar seekBar) {
         this.info = info;
         this.songNameView = songNameView;
         this.authorName = authorName;
@@ -68,41 +71,13 @@ public class UpdateManager {
     }
 
     public void updateUI() {
-        info.update();
+        info.update(MediaController.getInstance().getPlayingMessageObject());
 
         if (info.isShouldUpdate()) {
             songNameView.setText(info.getCurrentTitle());
             authorName.setText(info.getCurrentAuthor());
             ImageHelper.updateCover(info.getMessageObject(), avatarView, false);
             ImageHelper.updateCover(info.getMessageObject(), backgroundView, true);
-
-            backgroundView.getImageReceiver().setDelegate(new ImageReceiver.ImageReceiverDelegate() {
-                @Override
-                public void didSetImage(ImageReceiver imageReceiver, boolean set, boolean thumb, boolean memCache) {
-                    if (MusicPlayer.getInstance().isFeatureEnabled("enable_background_dominant", true)) {
-                        if (imageReceiver.getBitmap() != null) {
-                            applyColors(imageReceiver.getBitmap(), overlayColor);
-                            return;
-                        }
-                        overlayColor.setColors(new int[]{Color.parseColor("#525252"), ImageHelper.darkenColor(Color.parseColor("#525252"), 0.6f)});
-                    }
-                }
-
-                @Override
-                public void didSetImageBitmap(int i, String s, Drawable drawable) {
-                    if (MusicPlayer.getInstance().isFeatureEnabled("enable_background_dominant", true)) {
-                        if (drawable instanceof BitmapDrawable) {
-                            applyColors(((BitmapDrawable) drawable).getBitmap(), overlayColor);
-                            return;
-                        }
-                        overlayColor.setColors(new int[]{Color.parseColor("#525252"), ImageHelper.darkenColor(Color.parseColor("#525252"), 0.6f)});
-                    }
-                }
-
-                @Override
-                public void onAnimationReady(ImageReceiver imageReceiver) {
-                }
-            });
         }
 
         if (!isDragging) {

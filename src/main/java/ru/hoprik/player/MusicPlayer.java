@@ -1,5 +1,6 @@
 package ru.hoprik.player;
 
+import android.provider.Browser;
 import org.telegram.messenger.LocaleController;
 import org.telegram.ui.ActionBar.BaseFragment;
 import ru.hoprik.player.ui.MusicPlayerUI;
@@ -23,6 +24,10 @@ public class MusicPlayer {
 
     public void startPlayerUI(BaseFragment baseFragment) {
         baseFragment.presentFragment(new MusicPlayerUI());
+    }
+
+    public void openBrowser(BaseFragment fragment){
+        org.telegram.messenger.browser.Browser.openUrl(fragment.getContext(), "https://t.me/PESSDES_Plugins/109");
     }
 
     public void setLocalizations(Map<String, Map<String, String>> localizations) {
