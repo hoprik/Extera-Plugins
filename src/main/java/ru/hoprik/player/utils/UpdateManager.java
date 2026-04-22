@@ -12,6 +12,7 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 import org.telegram.messenger.ImageReceiver;
 import org.telegram.messenger.MediaController;
+import org.telegram.messenger.MessageObject;
 import org.telegram.ui.ActionBar.SimpleTextView;
 import org.telegram.ui.Components.BackupImageView;
 import ru.hoprik.player.MusicPlayer;
@@ -28,12 +29,17 @@ public class UpdateManager {
     private TextView audioTimeView;
     private SeekBar seekBar;
     private boolean isDragging;
+    private Runnable startTrackRefreshCallback;
+
+    private static final int START_TRACK_REFRESH_SECONDS = 10;
+    private long trackedMessageId = Long.MIN_VALUE;
+    private int lastRefreshedSecond = -1;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Runnable updateRunnable;
     private boolean isRunning = false;
 
-    public UpdateManager(MusicInfo info, SimpleTextView songNameView, TextView authorName, BackupImageView avatarView, BackupImageView backgroundView, GradientDrawable overlayColor, TextView currentDurationView, TextView audioTimeView, SeekBar seekBar) {
+    public UpdateManager(MusicInfo info, SimpleTextView songNameView, TextView authorName, BackupImageView avatarView, BackupImageView backgroundView, GradientDrawable overlayColor, TextView currentDurationView, TextView audioTimeView, SeekBar seekBar, Runnable startTrackRefreshCallback) {
         this.info = info;
         this.songNameView = songNameView;
         this.authorName = authorName;
@@ -43,6 +49,7 @@ public class UpdateManager {
         this.currentDurationView = currentDurationView;
         this.audioTimeView = audioTimeView;
         this.seekBar = seekBar;
+        this.startTrackRefreshCallback = startTrackRefreshCallback;
     }
 
     public void startUpdater() {
@@ -71,13 +78,35 @@ public class UpdateManager {
     }
 
     public void updateUI() {
-        info.update(MediaController.getInstance().getPlayingMessageObject());
+        MessageObject playingMessage = MediaController.getInstance().getPlayingMessageObject();
+        info.update(playingMessage);
+
+        long currentMessageId = resolveMessageId(playingMessage);
+        if (trackedMessageId != currentMessageId) {
+            trackedMessageId = currentMessageId;
+            lastRefreshedSecond = -1;
+        }
 
         if (info.isShouldUpdate()) {
             songNameView.setText(info.getCurrentTitle());
             authorName.setText(info.getCurrentAuthor());
             ImageHelper.updateCover(info.getMessageObject(), avatarView, false);
             ImageHelper.updateCover(info.getMessageObject(), backgroundView, true);
+            if (startTrackRefreshCallback != null) {
+                startTrackRefreshCallback.run();
+            }
+        }
+
+        if (playingMessage != null) {
+            int progressSec = Math.max(0, playingMessage.audioProgressSec);
+            if (progressSec < START_TRACK_REFRESH_SECONDS && lastRefreshedSecond != progressSec) {
+                lastRefreshedSecond = progressSec;
+                ImageHelper.updateCover(playingMessage, avatarView, false);
+                ImageHelper.updateCover(playingMessage, backgroundView, true);
+                if (startTrackRefreshCallback != null) {
+                    startTrackRefreshCallback.run();
+                }
+            }
         }
 
         if (!isDragging) {
@@ -108,5 +137,15 @@ public class UpdateManager {
 
     public boolean isDragging() {
         return isDragging;
+    }
+
+    private long resolveMessageId(MessageObject messageObject) {
+        if (messageObject == null) {
+            return Long.MIN_VALUE;
+        }
+        if (messageObject.getDocument() != null) {
+            return messageObject.getDocument().id;
+        }
+        return messageObject.getId();
     }
 }

@@ -224,14 +224,14 @@ public class MusicPlayerUI extends BaseFragment {
                     if (primaryControlsView != null) {
                         primaryControlsView.setPlayPauseState(!MediaController.getInstance().isMessagePaused(), false);
                     }
-                    if (playlistContainerView != null) playlistContainerView.updatePlaylistSelection();
+                    refreshPlaylistIfReady();
                     if (manager != null) manager.updateUI();
                 },
                 () -> {
                     if (primaryControlsView != null) {
                         primaryControlsView.setPlayPauseState(!MediaController.getInstance().isMessagePaused(), false);
                     }
-                    if (playlistContainerView != null) playlistContainerView.updatePlaylistSelection();
+                    refreshPlaylistIfReady();
                     if (manager != null) manager.updateUI();
                 }
         );
@@ -244,7 +244,7 @@ public class MusicPlayerUI extends BaseFragment {
         main_layout.addView(playerSeekBarView);
 
         primaryControlsView = new PrimaryControlsView(context, this.enableShuffle, () -> {
-            if (playlistContainerView != null) playlistContainerView.updatePlaylistSelection();
+            refreshPlaylistIfReady();
             if (manager != null) manager.updateUI();
         });
         main_layout.addView(primaryControlsView);
@@ -262,7 +262,18 @@ public class MusicPlayerUI extends BaseFragment {
         ImageHelper.updateCover(info.getMessageObject(), avatarCover, false);
         ImageHelper.updateCover(info.getMessageObject(), backgroundView.getBackgroundImage(), true);
 
-        this.manager = new UpdateManager(info, songInfoView.getSongView(), songInfoView.getAuthorView(), avatarCover, backgroundView.getBackgroundImage(), overlayColor, playerSeekBarView.getCurrentTimeView(), playerSeekBarView.getRemainingTimeView(), playerSeekBarView.getSeekBar());
+        this.manager = new UpdateManager(
+                info,
+                songInfoView.getSongView(),
+                songInfoView.getAuthorView(),
+                avatarCover,
+                backgroundView.getBackgroundImage(),
+                overlayColor,
+                playerSeekBarView.getCurrentTimeView(),
+                playerSeekBarView.getRemainingTimeView(),
+                playerSeekBarView.getSeekBar(),
+                this::refreshPlaylistIfReady
+        );
         playerSeekBarView.setManager(this.manager);
         this.manager.startUpdater();
 
@@ -278,13 +289,13 @@ public class MusicPlayerUI extends BaseFragment {
             if (primaryControlsView != null) {
                 primaryControlsView.setPlayPauseState(!MediaController.getInstance().isMessagePaused(), false);
             }
-            if (playlistContainerView != null) playlistContainerView.updatePlaylistSelection();
+            refreshPlaylistIfReady();
             if (manager != null) manager.updateUI();
         });
         main_layout.addView(playlistContainerView);
 
         TextView bottomText = new TextView(context);
-        bottomText.setText(LocaleUtils.fullyFormatText("Сделано с ❤️ от @hoprik для exteragram"));
+        bottomText.setText(LocaleUtils.fullyFormatText("Сделано с ❤️ от @hoprik и fork by @tecxz5 для exteragram"));
         bottomText.setTextColor(Theme.getColor(Theme.key_player_actionBarSubtitle));
         bottomText.setTextSize(12);
         bottomText.setGravity(Gravity.CENTER);
@@ -328,7 +339,15 @@ public class MusicPlayerUI extends BaseFragment {
 
     @Override
     public void onFragmentClosed() {
-        this.manager.stopUpdater();
+        if (this.manager != null) {
+            this.manager.stopUpdater();
+        }
+    }
+
+    private void refreshPlaylistIfReady() {
+        if (playlistContainerView != null) {
+            playlistContainerView.refreshPlaylistUI();
+        }
     }
 
     private List<ControlsElement> getElements(MusicInfo info) {
@@ -411,7 +430,6 @@ public class MusicPlayerUI extends BaseFragment {
     }
 
     private boolean isLyricsActivityAvailable() {
-        Log.i("TEST2", String.valueOf(MusicPlayer.getInstance().getLyricsClass() != null));
         return MusicPlayer.getInstance().getLyricsClass() != null;
     }
 

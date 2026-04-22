@@ -31,7 +31,7 @@ public class CoverLayout extends BackupImageView {
         this.isMiniCover = false;
     }
 
-    private CoverLayout(Context context, boolean isMiniCover) {
+    public CoverLayout(Context context, boolean isMiniCover) {
         super(context);
         this.isMiniCover = isMiniCover;
         setClickable(true);
@@ -130,7 +130,6 @@ public class CoverLayout extends BackupImageView {
 
     @Override
     protected void onDraw(Canvas canvas) {
-        Log.d("CONU", String.valueOf(imageReceiver.getThumbKey() == null && imageReceiver.getImageKey() != null));
         if (imageReceiver.getThumbKey() == null && imageReceiver.getImageKey() != null ){
             Drawable drawable = ImageLoader.getInstance().getFromMemCache(imageReceiver.getImageKey());
             if (drawable == null){
