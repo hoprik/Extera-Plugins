@@ -27,6 +27,8 @@ import java.util.List;
 public class PlaylistContainerView extends LinearLayout {
 
     private List<TrackItemHolder> playlistHolders = new ArrayList<>();
+    private final TextView playlistTitle;
+    private final PlaylistListener playlistListener;
 
     public interface PlaylistListener {
         void onTrackClicked(MessageObject message);
@@ -34,6 +36,7 @@ public class PlaylistContainerView extends LinearLayout {
 
     public PlaylistContainerView(Context context, List<MessageObject> playlist, PlaylistListener listener) {
         super(context);
+        this.playlistListener = listener;
         setOrientation(LinearLayout.VERTICAL);
 
         GradientDrawable background = new GradientDrawable();
@@ -48,20 +51,15 @@ public class PlaylistContainerView extends LinearLayout {
         );
         setLayoutParams(params);
 
-        TextView playlistTitle = new TextView(context);
+        playlistTitle = new TextView(context);
         playlistTitle.setText("Плейлист");
         playlistTitle.setTextColor(Theme.getColor(Theme.key_player_actionBarTitle));
         playlistTitle.setTextSize(14);
         playlistTitle.setTypeface(AndroidUtilities.bold());
         playlistTitle.setAlpha(0.8f);
         playlistTitle.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(8), AndroidUtilities.dp(16), AndroidUtilities.dp(8));
-        addView(playlistTitle);
 
-        for (MessageObject message : playlist) {
-            LinearLayout trackItem = createTrackItemView(context, message, listener);
-            addView(trackItem);
-        }
-        updatePlaylistSelection();
+        rebuildPlaylist(playlist);
     }
 
     public void updatePlaylistSelection() {
@@ -74,6 +72,7 @@ public class PlaylistContainerView extends LinearLayout {
                 holder.author.setTypeface(AndroidUtilities.bold());
                 holder.author.setTextColor(Theme.getColor(Theme.key_player_buttonActive));
                 holder.duration.setTextColor(Theme.getColor(Theme.key_player_buttonActive));
+                holder.playingIcon.setVisibility(View.VISIBLE);
             } else {
                 holder.title.setTypeface(AndroidUtilities.bold());
                 holder.title.setTextColor(Theme.getColor(Theme.key_player_actionBarTitle));
@@ -83,6 +82,37 @@ public class PlaylistContainerView extends LinearLayout {
                 holder.playingIcon.setVisibility(View.GONE);
             }
         }
+    }
+
+    public void refreshPlaylistUI() {
+        List<MessageObject> currentPlaylist = MediaController.getInstance().getPlaylist();
+        if (currentPlaylist == null) {
+            updatePlaylistSelection();
+            return;
+        }
+
+        // Skip heavy rebuild when playlist size is unchanged.
+        if (currentPlaylist.size() == playlistHolders.size()) {
+            updatePlaylistSelection();
+            return;
+        }
+
+        rebuildPlaylist(currentPlaylist);
+    }
+
+    private void rebuildPlaylist(List<MessageObject> playlist) {
+        playlistHolders.clear();
+        removeAllViews();
+        addView(playlistTitle);
+
+        for (MessageObject message : playlist) {
+            LinearLayout trackItem = createTrackItemView(getContext(), message, playlistListener);
+            addView(trackItem);
+        }
+
+        updatePlaylistSelection();
+        requestLayout();
+        invalidate();
     }
 
     private LinearLayout createTrackItemView(Context context, MessageObject message, PlaylistListener listener) {
@@ -96,7 +126,7 @@ public class PlaylistContainerView extends LinearLayout {
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
-        BackupImageView cover = new CoverLayout(context);
+        BackupImageView cover = new CoverLayout(context, true);
         cover.setLayoutParams(new LinearLayout.LayoutParams(AndroidUtilities.dp(48), AndroidUtilities.dp(48)));
         ((CoverLayout) cover).setRoundRadius(AndroidUtilities.dp(12));
         ((CoverLayout) cover).setAspectFit(true);
