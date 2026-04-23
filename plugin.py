@@ -8,23 +8,27 @@
 import base64
 import hashlib
 import sys
+import weakref
 from android.app import Dialog
 from java.lang import Boolean, Integer, String
 from java.nio import ByteBuffer
-from java.util import HashMap  # <--- Импортируем Java HashMap
+from java.util import HashMap
 from dalvik.system import InMemoryDexClassLoader
 from org.telegram.messenger.browser import Browser
 
-from base_plugin import BasePlugin, MenuItemData, MenuItemType, MethodHook
+from base_plugin import BasePlugin, MenuItemData, MenuItemType, MethodHook, HookFilter, hook_filters
 from client_utils import get_last_fragment, run_on_queue
 from android_utils import run_on_ui_thread
 from hook_utils import find_class, get_private_field
 
 from com.exteragram.messenger.plugins import PluginsController
-from org.telegram.messenger import MediaController, LocaleController, ApplicationLoader
-from org.telegram.ui.ActionBar import ActionBarMenuItem, BaseFragment
-from org.telegram.ui.Components import AudioPlayerAlert
-from ui.settings import Header, Switch, Text
+from org.telegram.messenger import MediaController, LocaleController, ApplicationLoader, AndroidUtilities
+from org.telegram.ui.ActionBar import ActionBarMenuItem, BaseFragment, Theme
+from org.telegram.ui.Components import AudioPlayerAlert, LayoutHelper, UItem
+from android.widget import FrameLayout, TextView
+from android.view import Gravity
+from android.util import TypedValue
+from ui.settings import Header, Switch, Text, Input
 
 import hashlib
 import sys
@@ -44,7 +48,6 @@ PLAYER_CLASS_NAME = "ru.hoprik.player.MusicPlayer"
 MusicPlayer = None
 dex_data =  # DEX_DATA_HERE #
 
-
 # ============ Localization ============
 class LocalizationManager:
     strings = {
@@ -60,6 +63,7 @@ class LocalizationManager:
             "settings_background": "Настройка фона",
             "settings_enter": "Настройки запуска",
             "settings_addons": "Дополнения",
+            "settings_proxy": "Прокси",
             "settings_enable_feature_shuffle": "Repeat и shuffle трэков",
             "settings_enable_feature_download": "Скачивание трэков",
             "settings_enable_feature_share": "Поделиться трэком",
@@ -84,6 +88,7 @@ class LocalizationManager:
             "settings_background": "Background Settings",
             "settings_enter": "Launch Settings",
             "settings_addons": "Addons",
+            "settings_proxy": "Proxy",
             "settings_enable_feature_shuffle": "Repeat and shuffle tracks",
             "settings_enable_feature_download": "Track downloading",
             "settings_enable_feature_share": "Share track",
@@ -134,6 +139,46 @@ def python_dict_to_java_map(py_dict):
     return outer_map
 
 
+# ============ Header Hook Class ============
+class MusicPlayerSettingsHeaderHook:
+    def __init__(self, plugin):
+        self._plugin_ref = weakref.ref(plugin)
+
+    @hook_filters(HookFilter.Condition("param.thisObject != null"), HookFilter.ArgumentNotNull(0))
+    def after_hooked_method(self, param):
+        pass
+        try:
+            global MusicPlayer
+            activity = param.thisObject
+            items = param.args[0]
+            if not items or items.size() == 0:
+                return
+
+            plugin_obj = get_private_field(activity, "plugin")
+            if not plugin_obj or str(plugin_obj.getId()) != __id__:
+                return
+
+            if get_private_field(activity, "createSubFragmentCallback") is not None:
+                print("хуй", get_private_field(activity, "createSubFragmentCallback"))
+                return
+
+            plugin = self._plugin_ref()
+            if not plugin:
+                return
+
+            if MusicPlayer:
+                header = MusicPlayer.createHeader(get_last_fragment())
+            else:
+                header = plugin._create_settings_header(activity.getContext())
+            print(f"Header created: {header is not None}")
+            if header:
+                item = UItem.asCustom(header)
+                items.add(0, item)
+                items.add(1, UItem.asShadow())
+        except Exception as e:
+            pass
+
+
 # ============ Plugin Class ============
 class PlayerPlugin(BasePlugin):
 
@@ -142,6 +187,7 @@ class PlayerPlugin(BasePlugin):
         self.chat_settings_item = None
         self.profile_settings_item = None
         self.drawer_menu_item = None
+        self.hook_settings_header_ref = None
 
     def on_plugin_load(self):
         self.add_settings_menu_items()
@@ -153,22 +199,63 @@ class PlayerPlugin(BasePlugin):
         self.hook_method(BaseFragment.getClass().getDeclaredMethod("showDialog", Dialog),
                          InterceptStandardPlayerHook(self))
 
+        self._setup_settings_header_hook()
         run_on_queue(self.dex_load)
 
     def on_plugin_unload(self):
-
         self.remove_settings_menu_items()
+        if self.hook_settings_header_ref:
+            self.unhook_method(self.hook_settings_header_ref)
+            self.hook_settings_header_ref = None
 
+    # ---------- Header creation ----------
+    def _setup_settings_header_hook(self):
+        try:
+            PSA = find_class("com.exteragram.messenger.plugins.ui.PluginSettingsActivity")
+            if not PSA:
+                return
+            method = PSA.getClass().getDeclaredMethod("fillItems",
+                                                      find_class("java.util.ArrayList"),
+                                                      find_class("org.telegram.ui.Components.UniversalAdapter"))
+            method.setAccessible(True)
+            self.hook_settings_header_ref = self.hook_method(method, MusicPlayerSettingsHeaderHook(self))
+        except Exception as e:
+            self.log(f"Failed to setup header hook: {e}")
+
+    def _create_settings_header(self, context):
+        try:
+            container = FrameLayout(context)
+
+            title = TextView(context)
+            title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText))
+            title.setTypeface(AndroidUtilities.getTypeface(AndroidUtilities.TYPEFACE_ROBOTO_MEDIUM))
+            title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 22)
+            title.setText(f"Music Player {__version__}")
+            title.setSingleLine(True)
+            title.setGravity(Gravity.CENTER)
+            container.addView(title, LayoutHelper.createFrame(-2, -2, Gravity.CENTER, 0, 20, 0, 0))
+
+            subtitle = TextView(context)
+            subtitle.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText))
+            subtitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14)
+            subtitle.setText("Full‑screen music player with extra features")
+            subtitle.setGravity(Gravity.CENTER)
+            container.addView(subtitle, LayoutHelper.createFrame(-2, -2, Gravity.CENTER, 0, 55, 0, 20))
+
+            return container
+        except Exception as e:
+            self.log(f"Error creating header: {e}")
+            return None
+
+    # ---------- DEX loading ----------
     def dex_load(self):
         global MusicPlayer
         try:
-            # Декодируем один раз и сохраняем байты
             dex_bytes = base64.b64decode(dex_data)
         except Exception as e:
             self.log(f"Failed to decode dex_data: {e}")
             return
 
-        # Проверяем хеш
         try:
             computed_hash = hashlib.sha256(dex_bytes).hexdigest()
             if computed_hash != dex_hash:
@@ -180,14 +267,13 @@ class PlayerPlugin(BasePlugin):
             self.log(f"Error computing dex hash: {e}")
             return
 
-        # Дальше загрузка с уже имеющимися байтами
         try:
             clazz = find_class(PLAYER_CLASS_NAME).getClass()
             self.log(f"Found existing class: {PLAYER_CLASS_NAME}")
         except:
             self.log(f"Class not found, loading DEX...")
             loader = InMemoryDexClassLoader(
-                ByteBuffer.wrap(dex_bytes),   # используем dex_bytes
+                ByteBuffer.wrap(dex_bytes),
                 ApplicationLoader.applicationContext.getClassLoader()
             )
             clazz = loader.loadClass(PLAYER_CLASS_NAME)
@@ -201,11 +287,39 @@ class PlayerPlugin(BasePlugin):
                 self.log("Translations passed successfully")
             except Exception as e:
                 self.log(f"Warning: Could not pass translations (update DEX?): {e}")
-
         except Exception as e:
             self.log(f"FATAL ERROR getting instance: {e}")
 
+    # ---------- Settings UI ----------
     def create_settings(self):
+        return [
+            Text(
+                text=localizer.get_string("settings_elements"),
+                icon="msg_arrow_forward",
+                create_sub_fragment=self.sub_settings_element,
+                link_alias="sub_settings_element",
+            ),
+            Text(
+                text=localizer.get_string("settings_enter"),
+                icon="msg_arrow_forward",
+                create_sub_fragment=self.sub_settings_enter,
+                link_alias="sub_settings_enter",
+            ),
+            Text(
+                text=localizer.get_string("settings_proxy"),
+                icon="msg_arrow_forward",
+                create_sub_fragment=self.sub_settings_proxy,
+                link_alias="sub_settings_enter",
+            ),
+            Text(
+                text=localizer.get_string("settings_addons"),
+                icon="msg_arrow_forward",
+                create_sub_fragment=self.sub_settings_extensions,
+                link_alias="sub_settings_enter",
+            )
+        ]
+
+    def sub_settings_element(self):
         return [
             Header(localizer.get_string("settings_elements")),
             Switch(key="enable_feature_shuffle", text=localizer.get_string("settings_enable_feature_shuffle"),
@@ -217,7 +331,11 @@ class PlayerPlugin(BasePlugin):
             Switch(key="enable_feature_save", text=localizer.get_string("settings_enable_feature_save"), default=True,
                    icon="msg_settings"),
             Switch(key="enable_feature_save_profile", text=localizer.get_string("settings_enable_feature_save_profile"), default=True,
-                   icon="msg_settings"),
+                   icon="msg_settings")
+        ]
+
+    def sub_settings_enter(self):
+        return [
             Header(localizer.get_string("settings_enter")),
             Switch(key="enable_audioplayer", text=localizer.get_string("settings_enable_enter_audioplayer"),
                    default=True, icon="msg_settings"),
@@ -225,29 +343,48 @@ class PlayerPlugin(BasePlugin):
                    subtext=localizer.get_string("settings_enable_enter_subitem"), default=True, icon="msg_settings"),
             Switch(key="enable_enter_profile", text=localizer.get_string("settings_enable_enter_profile"),
                    subtext=localizer.get_string("settings_enable_enter_profile"), default=True, icon="msg_settings",
-                   on_change=self._reload_menu_items()),
+                   on_change=self._reload_menu_items),
             Switch(key="enable_enter_chat", text=localizer.get_string("settings_enable_enter_chat"),
                    subtext=localizer.get_string("settings_enable_enter_chat"), default=True, icon="msg_settings",
-                   on_change=self._reload_menu_items()),
+                   on_change=self._reload_menu_items),
             Switch(key="enable_enter_sidebar", text=localizer.get_string("settings_enable_enter_sidebar"),
                    subtext=localizer.get_string("settings_enable_enter_sidebar"), default=True, icon="msg_settings",
-                   on_change=self._reload_menu_items()),
+                   on_change=self._reload_menu_items)
+        ]
+
+    def sub_settings_extensions(self):
+        return [
             Header(localizer.get_string("settings_addons")),
             Switch(key="enable_lyrics", text=localizer.get_string("settings_enable_addon_lyrics"),
                    subtext=localizer.get_string("settings_enable_addon_lyrics"), default=False, icon="msg_settings"),
             Text(text="Скачать плагин lyrics", on_click=self._open_plugin_lyrics)
         ]
 
+    def sub_settings_proxy(self):
+        settings = [
+            Header(localizer.get_string("settings_proxy")),
+        ]
+
+        for i in range(1, 5):
+            settings.append(Input(
+                key=f"proxy_settings_{i}",
+                text=f"Proxy {i}",
+                subtext="host:port",
+                default="",
+                icon="msg_settings"
+            ))
+
+        return settings
+
     def _open_plugin_lyrics(self, view):
         if MusicPlayer:
             MusicPlayer.openBrowser(get_last_fragment())
 
-    def _reload_menu_items(self):
+    def _reload_menu_items(self, *args):
         self.remove_settings_menu_items()
         self.add_settings_menu_items()
 
     def add_settings_menu_items(self):
-
         if not self.chat_settings_item and self.get_setting("enable_enter_chat", True):
             self.chat_settings_item = self.add_menu_item(
                 MenuItemData(
@@ -297,14 +434,9 @@ class PlayerPlugin(BasePlugin):
             self.drawer_menu_item = None
 
     def sync_settings_to_java(self):
-        """Собирает настройки Python и отправляет их в Java класс"""
         if MusicPlayer is None:
             return
-
-        # Создаем Java HashMap
         java_settings = HashMap()
-
-        # Список ключей настроек (должны совпадать с теми, что в create_settings)
         keys = [
             "enable_feature_shuffle",
             "enable_feature_download",
@@ -312,17 +444,10 @@ class PlayerPlugin(BasePlugin):
             "enable_feature_save",
             "enable_background_dominant"
         ]
-
         for key in keys:
-            # self.get_setting(ключ, значение_по_умолчанию)
-            # Важно: значение по умолчанию должно совпадать с логикой в Java
             py_val = self.get_setting(key, True)
-
-            # Кладем в Map: Ключ (String) -> Значение (Boolean)
             java_settings.put(String(key), Boolean(py_val))
-
         try:
-            # Вызываем Java метод setSettings
             MusicPlayer.setSettings(java_settings)
             self.log("Settings synced to Java successfully")
         except Exception as e:
@@ -341,7 +466,8 @@ class PlayerPlugin(BasePlugin):
         lyrics = PluginsController.getInstance().plugins.get("lyrics")
 
         if not self.get_setting("enable_lyrics", False) or not lyrics or not lyrics.isEnabled():
-            if MusicPlayer: MusicPlayer.setLyricsClass(None)
+            if MusicPlayer:
+                MusicPlayer.setLyricsClass(None)
             return
 
         for _, module in list(sys.modules.items()):

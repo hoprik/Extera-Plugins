@@ -1,56 +1,31 @@
-package ru.hoprik.player.ui;
+package ru.hoprik.player.ui.player;
 
-import android.animation.Animator;
-import android.animation.AnimatorListenerAdapter;
 import android.content.Context;
-import android.graphics.*;
-import android.graphics.drawable.BitmapDrawable;
-import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
-import android.os.Handler;
-import android.os.Looper;
 import android.text.TextUtils;
-import android.util.Log;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.*;
-import android.widget.SeekBar;
-import androidx.core.view.OnApplyWindowInsetsListener;
 import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
-import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
 
 import com.exteragram.messenger.utils.text.LocaleUtils;
 import org.telegram.messenger.*;
 import org.telegram.messenger.MediaController;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.BaseFragment;
-import org.telegram.ui.ActionBar.SimpleTextView;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.*;
 import org.telegram.ui.Components.MotionBackgroundDrawable;
-import org.telegram.ui.Components.AudioVisualizerDrawable;
 import ru.hoprik.player.MusicPlayer;
-import ru.hoprik.player.ui.components.ControlsElement;
-import ru.hoprik.player.ui.components.CoverLayout;
-import ru.hoprik.player.ui.components.PlayerBackgroundView;
-import ru.hoprik.player.ui.components.PlayerSeekBarView;
-import ru.hoprik.player.ui.components.PlaylistContainerView;
-import ru.hoprik.player.ui.components.PrimaryControlsView;
-import ru.hoprik.player.ui.components.SecondaryControlsView;
-import ru.hoprik.player.ui.components.SongInfoView;
-import ru.hoprik.player.ui.components.SwipeBackLayout;
+import ru.hoprik.player.ui.player.components.*;
 import ru.hoprik.player.utils.ControlsHelpers;
 import ru.hoprik.player.utils.ImageHelper;
 import ru.hoprik.player.utils.MusicInfo;
 import ru.hoprik.player.utils.UpdateManager;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 public class MusicPlayerUI extends BaseFragment {

@@ -1,4 +1,4 @@
-package ru.hoprik.player.ui.components;
+package ru.hoprik.player.ui.player.components;
 
 public class ControlsElement {
     private Runnable runnable;

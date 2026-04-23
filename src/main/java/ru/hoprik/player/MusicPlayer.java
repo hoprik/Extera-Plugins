@@ -1,9 +1,10 @@
 package ru.hoprik.player;
 
-import android.provider.Browser;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.browser.Browser;
 import org.telegram.ui.ActionBar.BaseFragment;
-import ru.hoprik.player.ui.MusicPlayerUI;
+import ru.hoprik.player.ui.player.MusicPlayerUI;
+import ru.hoprik.player.ui.settings.components.CustomHeader;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -27,7 +28,11 @@ public class MusicPlayer {
     }
 
     public void openBrowser(BaseFragment fragment){
-        org.telegram.messenger.browser.Browser.openUrl(fragment.getContext(), "https://t.me/PESSDES_Plugins/109");
+        Browser.openUrl(fragment.getContext(), "https://t.me/PESSDES_Plugins/109");
+    }
+
+    public CustomHeader createHeader(BaseFragment fragment){
+        return new CustomHeader(fragment.getContext(), fragment);
     }
 
     public void setLocalizations(Map<String, Map<String, String>> localizations) {

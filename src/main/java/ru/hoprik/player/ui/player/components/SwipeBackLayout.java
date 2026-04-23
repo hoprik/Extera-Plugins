@@ -1,4 +1,4 @@
-package ru.hoprik.player.ui.components;
+package ru.hoprik.player.ui.player.components;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
