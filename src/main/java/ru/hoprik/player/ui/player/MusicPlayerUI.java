@@ -2,6 +2,7 @@ package ru.hoprik.player.ui.player;
 
 import android.content.Context;
 import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -11,6 +12,11 @@ import android.widget.*;
 import androidx.core.view.ViewCompat;
 
 import com.exteragram.messenger.utils.text.LocaleUtils;
+import com.google.android.exoplayer2.ExoPlayer;
+import com.google.android.exoplayer2.MediaItem;
+import com.google.android.exoplayer2.source.MediaSource;
+import com.google.android.exoplayer2.source.ProgressiveMediaSource;
+import com.google.android.exoplayer2.upstream.DefaultDataSource;
 import org.telegram.messenger.*;
 import org.telegram.messenger.MediaController;
 import org.telegram.ui.ActionBar.ActionBar;
@@ -72,6 +78,19 @@ public class MusicPlayerUI extends BaseFragment {
     public View createView(Context context) {
         fragmentView = new SwipeBackLayout(context, this);
         FrameLayout container = (FrameLayout) fragmentView;
+
+//        ExoPlayer player = new ExoPlayer.Builder(context).build();
+//
+//        DefaultDataSource.Factory dataSourceFactory =
+//                new DefaultDataSource.Factory(context);
+//
+//        MediaSource mediaSource =
+//                new ProgressiveMediaSource.Factory(dataSourceFactory)
+//                        .createMediaSource(MediaItem.fromUri("https://fine.sunproxy.net/file/M2w4cGt3UzBSOXB4OU9TSGFMdlBpVC9zc0dMV2liUGVTZFR5a3htR2dKUWljYklkZkp0MGxuWks1M0VpWHVmbTFOT0JGSUFWSURudkt4alUzb3NpS1QzeG9zYVZsKzhLdW9RTGpQNWQ0d0E9/MAYOT_-_Lagayu_(SkySound.cc).mp3"));
+//
+//        player.setMediaSource(mediaSource);
+//        player.prepare();
+//        player.play();
 
         ScrollView scrollView = new ScrollView(context);
         scrollView.setFillViewport(true);

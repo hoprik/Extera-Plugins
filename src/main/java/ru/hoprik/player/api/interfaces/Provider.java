@@ -17,9 +17,13 @@ public abstract class Provider {
         return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36";
     }
 
-    public void makeReq(String relativeUrl,String method, RequestBody body, Callback callback){
+    public void makeReq(String relativeUrl, String method, RequestBody body, Callback callback){
+        makeReq(getBaseUrl(), relativeUrl, method, body, callback);
+    }
+
+    public void makeReq(String baseUrl, String relativeUrl, String method, RequestBody body, Callback callback){
         Request request = new Request.Builder()
-                .url(URI.create(getBaseUrl()).resolve(relativeUrl).toString())
+                .url(URI.create(baseUrl).resolve(relativeUrl).toString())
                 .header("User-Agent", getUserAgent())
                 .method(method, body)
                 .build();

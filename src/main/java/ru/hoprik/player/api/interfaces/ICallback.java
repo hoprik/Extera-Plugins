@@ -1,5 +1,6 @@
 package ru.hoprik.player.api.interfaces;
 
 public interface ICallback<T> {
-    T onSuccess(Class<T> type);
+    void onSuccess(T item);
+    void onError(Throwable throwable);
 }

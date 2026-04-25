@@ -7,7 +7,6 @@ import java.net.InetSocketAddress;
 import java.net.Proxy;
 
 public final class ApiClient {
-
     private static final ApiClient INSTANCE = new ApiClient();
 
     private final OkHttpClient directClient;
@@ -15,20 +14,18 @@ public final class ApiClient {
 
     private ApiClient() {
         this.directClient = new OkHttpClient.Builder().build();
-        this.proxiedClient = setSocksProxy("", 3128);
     }
 
     public static ApiClient getInstance() {
         return INSTANCE;
     }
 
-    public synchronized OkHttpClient setSocksProxy(String host, int port) {
+    public synchronized void setSocksProxy(String host, int port) {
         Proxy proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress(host, port));
         OkHttpClient.Builder builder = new OkHttpClient.Builder();
         tryApplyBuilderProxy(builder, proxy);
-        return builder.build();
+        this.proxiedClient = builder.build();
     }
-
     public synchronized void clearProxy() {
         this.proxiedClient = null;
     }
