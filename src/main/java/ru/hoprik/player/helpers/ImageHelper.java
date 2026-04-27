@@ -1,4 +1,4 @@
-package ru.hoprik.player.utils;
+package ru.hoprik.player.helpers;
 
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -6,7 +6,6 @@ import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.text.TextUtils;
-import androidx.palette.graphics.Palette;
 import org.telegram.messenger.*;
 import org.telegram.messenger.audioinfo.AudioInfo;
 import org.telegram.tgnet.TLRPC;

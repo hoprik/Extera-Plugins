@@ -10,8 +10,6 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.ui.ActionBar.SimpleTextView;
 import org.telegram.ui.ActionBar.Theme;
 
-import ru.hoprik.player.utils.MusicInfo;
-
 public class SongInfoView extends LinearLayout {
 
     private SimpleTextView songView;

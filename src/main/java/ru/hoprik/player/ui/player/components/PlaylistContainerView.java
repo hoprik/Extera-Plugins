@@ -16,8 +16,7 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.BackupImageView;
 import org.telegram.ui.Components.RLottieImageView;
 
-import ru.hoprik.player.utils.ImageHelper;
-import ru.hoprik.player.utils.MusicInfo;
+import ru.hoprik.player.helpers.ImageHelper;
 
 import java.util.ArrayList;
 import java.util.List;

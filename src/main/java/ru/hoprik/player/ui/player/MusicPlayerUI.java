@@ -2,7 +2,6 @@ package ru.hoprik.player.ui.player;
 
 import android.content.Context;
 import android.graphics.drawable.GradientDrawable;
-import android.net.Uri;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -12,11 +11,6 @@ import android.widget.*;
 import androidx.core.view.ViewCompat;
 
 import com.exteragram.messenger.utils.text.LocaleUtils;
-import com.google.android.exoplayer2.ExoPlayer;
-import com.google.android.exoplayer2.MediaItem;
-import com.google.android.exoplayer2.source.MediaSource;
-import com.google.android.exoplayer2.source.ProgressiveMediaSource;
-import com.google.android.exoplayer2.upstream.DefaultDataSource;
 import org.telegram.messenger.*;
 import org.telegram.messenger.MediaController;
 import org.telegram.ui.ActionBar.ActionBar;
@@ -26,15 +20,13 @@ import org.telegram.ui.Components.*;
 import org.telegram.ui.Components.MotionBackgroundDrawable;
 import ru.hoprik.player.MusicPlayer;
 import ru.hoprik.player.ui.player.components.*;
-import ru.hoprik.player.utils.ControlsHelpers;
-import ru.hoprik.player.utils.ImageHelper;
-import ru.hoprik.player.utils.MusicInfo;
-import ru.hoprik.player.utils.UpdateManager;
+import ru.hoprik.player.helpers.ControlsHelpers;
+import ru.hoprik.player.helpers.ImageHelper;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class MusicPlayerUI extends BaseFragment {
+public class MusicPlayerUI extends BaseFragment implements NotificationCenter.NotificationCenterDelegate{
     PlayerBackgroundView backgroundView;
     GradientDrawable overlayColor;
     List<MessageObject> playlist;
@@ -57,6 +49,34 @@ public class MusicPlayerUI extends BaseFragment {
         this.enableShare = MusicPlayer.getInstance().isFeatureEnabled("enable_feature_share", true);
         this.enableSave = MusicPlayer.getInstance().isFeatureEnabled("enable_feature_save", true);
         this.enableSaveProfile = MusicPlayer.getInstance().isFeatureEnabled("enable_feature_save_profile", true);
+        registerListeners();
+    }
+
+
+    private void registerListeners() {
+        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.messagePlayingDidReset);
+        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
+        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.messagePlayingDidStart);
+        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.messagePlayingProgressDidChanged);
+        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.fileLoaded);
+        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.fileLoadProgressChanged);
+        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.musicDidLoad);
+        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.moreMusicDidLoad);
+        NotificationCenter.getInstance(currentAccount).addObserver(this, NotificationCenter.musicIdsLoaded);
+        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.messagePlayingSpeedChanged);
+    }
+
+    private void unregisterListeners() {
+        NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.messagePlayingDidReset);
+        NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
+        NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.messagePlayingDidStart);
+        NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.messagePlayingProgressDidChanged);
+        NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.fileLoaded);
+        NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.fileLoadProgressChanged);
+        NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.musicDidLoad);
+        NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.moreMusicDidLoad);
+        NotificationCenter.getInstance(currentAccount).removeObserver(this, NotificationCenter.musicIdsLoaded);
+        NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.messagePlayingSpeedChanged);
     }
 
     @Override
@@ -439,5 +459,16 @@ public class MusicPlayerUI extends BaseFragment {
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 Gravity.CENTER));
 
+    }
+
+    @Override
+    public void didReceivedNotification(int i, int i1, Object... objects) {
+
+    }
+
+    @Override
+    public void finishFragment() {
+        super.finishFragment();
+        unregisterListeners();
     }
 }

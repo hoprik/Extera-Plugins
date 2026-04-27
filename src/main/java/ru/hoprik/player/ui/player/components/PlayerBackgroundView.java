@@ -11,7 +11,7 @@ import org.telegram.messenger.ImageReceiver;
 import org.telegram.ui.Components.BackupImageView;
 import org.telegram.ui.Components.MotionBackgroundDrawable;
 
-import ru.hoprik.player.utils.ImageHelper;
+import ru.hoprik.player.helpers.ImageHelper;
 
 public class PlayerBackgroundView extends FrameLayout {
 

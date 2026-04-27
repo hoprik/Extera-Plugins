@@ -4,7 +4,6 @@ import android.content.Context;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.GradientDrawable;
-import android.util.Log;
 import android.view.Gravity;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
@@ -14,9 +13,6 @@ import android.widget.TextView;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.MediaController;
 import org.telegram.ui.ActionBar.Theme;
-
-import ru.hoprik.player.utils.MusicInfo;
-import ru.hoprik.player.utils.UpdateManager;
 
 public class PlayerSeekBarView extends LinearLayout {
 
