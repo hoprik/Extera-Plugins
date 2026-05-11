@@ -1,22 +1,23 @@
 package ru.hoprik.player.api.providers;
 
 import android.util.Log;
+import com.google.android.exoplayer2.ext.ffmpeg.FfmpegLibrary;
 import com.google.gson.Gson;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.OkHttpClient;
 import okhttp3.Response;
-import ru.hoprik.player.api.interfaces.*;
+import ru.hoprik.player.api.interfaces.ICallback;
+import ru.hoprik.player.api.interfaces.Provider;
 import ru.hoprik.player.api.interfaces.info.IArtistInfo;
 import ru.hoprik.player.api.interfaces.info.IFindMusicInfo;
 import ru.hoprik.player.api.interfaces.info.IReleaseInfo;
 import ru.hoprik.player.api.interfaces.info.ITrackInfo;
-import ru.hoprik.player.api.objects.ArtistInfo;
 import ru.hoprik.player.api.objects.FindMusicInfo;
-import ru.hoprik.player.api.objects.ReleaseInfo;
-import ru.hoprik.player.api.objects.TrackInfo;
+import ru.hoprik.player.audio.*;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -37,8 +38,11 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
         return "https://api.stats.fm/";
     }
 
+    // --------------------------------------------------------------
+    // 1. Получение информации о треке -> Track
+    // --------------------------------------------------------------
     @Override
-    public void getTrackInfo(int id, ICallback<TrackInfo> callback) {
+    public void getTrackInfo(int id, ICallback<Track> callback) {
         makeReq(API_TRACKS + id, "GET", null, new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
@@ -51,13 +55,8 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
                     if (response.isSuccessful() && response.body() != null) {
                         String body = response.body().string();
                         ResTrackInfo res = (ResTrackInfo) gson.fromJson(body, ResTrackInfo.class);
-                        ReleaseInfo album = convertAlbums(res.items.albums).isEmpty() ? null : convertAlbums(res.items.albums).get(0);
-                        callback.onSuccess(new TrackInfo(
-                                String.valueOf(res.items.id),
-                                res.items.name,
-                                convertArtists(res.items.artists),
-                                album
-                        ));
+                        Track track = mapToTrack(res.items);
+                        callback.onSuccess(track);
                     } else {
                         callback.onError(new IOException("Failed to get track info: " + response.code()));
                     }
@@ -69,18 +68,29 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
         });
     }
 
+    // --------------------------------------------------------------
+    // 2. Получение информации об артисте -> Artist
+    // --------------------------------------------------------------
     @Override
-    public void getArtistInfo(int id, ICallback<ArtistInfo> callback) {
-        ArtistInfo info = new ArtistInfo(null, null, null, null, null);
+    public void getArtistInfo(int id, ICallback<Artist> callback) {
+        ArtistInfoHolder holder = new ArtistInfoHolder();
         AtomicInteger remaining = new AtomicInteger(3);
         Runnable finish = () -> {
-            if (info.getId() != null) {
-                callback.onSuccess(info);
+            if (holder.id != null) {
+                Artist artist = new Artist(
+                        holder.id,
+                        holder.name,
+                        holder.cover != null ? new Cover(holder.cover) : null,
+                        holder.popularTracks,
+                        holder.popularReleases
+                );
+                callback.onSuccess(artist);
             } else {
                 callback.onError(new IOException("Failed to fetch artist info"));
             }
         };
 
+        // Запрос основного info
         makeReq(API_ARTISTS + id, "GET", null, new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
@@ -93,9 +103,9 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
                     if (response.isSuccessful() && response.body() != null) {
                         String body = response.body().string();
                         ResArtistInfo res = (ResArtistInfo) gson.fromJson(body, ResArtistInfo.class);
-                        info.setId(String.valueOf(res.items.id));
-                        info.setName(res.items.name);
-                        info.setCoverUrl(res.items.image);
+                        holder.id = String.valueOf(res.items.id);
+                        holder.name = res.items.name;
+                        holder.cover = res.items.image;
                     }
                 } catch (Exception e) {
                     Log.w(TAG, "Error parsing artist info", e);
@@ -105,6 +115,7 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
             }
         });
 
+        // Запрос альбомов артиста
         makeReq(API_ARTISTS + id + "/albums", "GET", null, new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
@@ -117,7 +128,7 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
                     if (response.isSuccessful() && response.body() != null) {
                         String body = response.body().string();
                         ResTopArtistAlbums res = (ResTopArtistAlbums) gson.fromJson(body, ResTopArtistAlbums.class);
-                        info.setPopularReleases(convertAlbums(res.items));
+                        holder.popularReleases = mapToReleasesSimple(res.items);
                     }
                 } catch (Exception e) {
                     Log.w(TAG, "Error parsing artist albums", e);
@@ -125,8 +136,10 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
                     if (remaining.decrementAndGet() == 0) finish.run();
                 }
             }
+
         });
 
+        // Запрос треков артиста
         makeReq(API_ARTISTS + id + "/tracks", "GET", null, new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
@@ -139,7 +152,7 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
                     if (response.isSuccessful() && response.body() != null) {
                         String body = response.body().string();
                         ResTopArtistTracks res = (ResTopArtistTracks) gson.fromJson(body, ResTopArtistTracks.class);
-                        info.setPopularTracks(convertTracks(res.items));
+                        holder.popularTracks = mapToTracks(res.items);
                     }
                 } catch (Exception e) {
                     Log.w(TAG, "Error parsing artist tracks", e);
@@ -150,13 +163,24 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
         });
     }
 
+    // --------------------------------------------------------------
+    // 3. Получение информации о релизе (альбоме) -> Release
+    // --------------------------------------------------------------
     @Override
-    public void getReleaseInfo(int id, ICallback<ReleaseInfo> callback) {
-        ReleaseInfo info = new ReleaseInfo(null, null, null, 0, null);
+    public void getReleaseInfo(int id, ICallback<Release> callback) {
+        ReleaseInfoHolder holder = new ReleaseInfoHolder();
         AtomicInteger remaining = new AtomicInteger(2);
         Runnable finish = () -> {
-            if (info.getId() != null) {
-                callback.onSuccess(info);
+            if (holder.id != null) {
+                Release release = new Release(
+                        holder.id,
+                        holder.title,
+                        holder.artists,
+                        holder.releaseDate,
+                        holder.cover != null ? new Cover(holder.cover) : null,
+                        holder.tracks
+                );
+                callback.onSuccess(release);
             } else {
                 callback.onError(new IOException("Failed to fetch release info"));
             }
@@ -174,11 +198,11 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
                     if (response.isSuccessful() && response.body() != null) {
                         String body = response.body().string();
                         ResReleaseInfo res = (ResReleaseInfo) gson.fromJson(body, ResReleaseInfo.class);
-                        info.setId(String.valueOf(res.items.id));
-                        info.setTitle(res.items.name);
-                        info.setCoverUrl(res.items.image);
-                        info.setReleaseDate(res.items.releaseDate);
-                        info.setArtist(convertArtists(res.items.artists));
+                        holder.id = String.valueOf(res.items.id);
+                        holder.title = res.items.name;
+                        holder.cover = res.items.image;
+                        holder.releaseDate = res.items.releaseDate;
+                        holder.artists = mapToArtistsSimple(res.items.artists);
                     }
                 } catch (Exception e) {
                     Log.w(TAG, "Error parsing release info", e);
@@ -200,7 +224,7 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
                     if (response.isSuccessful() && response.body() != null) {
                         String body = response.body().string();
                         ResReleaseTracks res = (ResReleaseTracks) gson.fromJson(body, ResReleaseTracks.class);
-                        info.setTracks(convertTracks(res.items));
+                        holder.tracks = mapToTracks(res.items);
                     }
                 } catch (Exception e) {
                     Log.w(TAG, "Error parsing release tracks", e);
@@ -211,6 +235,9 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
         });
     }
 
+    // --------------------------------------------------------------
+    // 4. Поиск -> MusicSearchResult
+    // --------------------------------------------------------------
     @Override
     public void findMusicInfo(String query, ICallback<FindMusicInfo> callback) {
         makeReq(API_SEARCH + "?query=" + query + "&type=album,artist,track,user&limit=50", "GET", null, new Callback() {
@@ -225,11 +252,10 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
                     if (response.isSuccessful() && response.body() != null) {
                         String body = response.body().string();
                         ResFindStatsFM res = (ResFindStatsFM) gson.fromJson(body, ResFindStatsFM.class);
-                        callback.onSuccess(new FindMusicInfo(
-                                convertTracks(res.items.tracks),
-                                convertAlbums(res.items.albums),
-                                convertArtists(res.items.artists)
-                        ));
+                        List<Track> tracks = mapToTracks(res.items.tracks);
+                        List<Release> releases = mapToReleasesSimple(res.items.albums);
+                        List<Artist> artists = mapToArtistsSimple(res.items.artists);
+                        callback.onSuccess(new FindMusicInfo(tracks, releases, artists));
                     } else {
                         callback.onError(new IOException("Search failed: " + response.code()));
                     }
@@ -241,31 +267,102 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
         });
     }
 
-    private java.util.List<TrackInfo> convertTracks(java.util.List<StatsFMTrack> tracks) {
-        return tracks.stream()
-                .map(t -> {
-                    java.util.List<ReleaseInfo> albums = convertAlbums(t.albums);
-                    return new TrackInfo(
-                            String.valueOf(t.id),
-                            t.name,
-                            convertArtists(t.artists),
-                            albums.isEmpty() ? null : albums.get(0)
-                    );
-                })
+    // --------------------------------------------------------------
+    // ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ МАППИНГА
+    // --------------------------------------------------------------
+
+    private Track mapToTrack(StatsFMTrack raw) {
+        String id = String.valueOf(raw.id);
+        String name = raw.name;
+        // Конвертируем артистов
+        List<Artist> artists = raw.artists.stream()
+                .map(this::mapToArtistSimple)
+                .collect(Collectors.toList());
+        int durationMs = (int) raw.durationMs;
+        // Берём обложку из первого альбома (если есть)
+        Cover cover = null;
+        if (raw.albums != null && !raw.albums.isEmpty()) {
+            cover = new Cover(raw.albums.get(0).image);
+        }
+        // Release пока не заполняем (можно позже через getReleaseInfo)
+        return new Track(id, name, artists, durationMs, 0, cover, null);
+    }
+
+    private Artist mapToArtistSimple(StatsFMArtist raw) {
+        String id = String.valueOf(raw.id);
+        String name = raw.name;
+        Cover cover = raw.image != null ? new Cover(raw.image) : null;
+        // Без популярных треков и альбомов (заполняются отдельно)
+        return new Artist(id, name, cover, null, null);
+    }
+
+    private Artist mapToArtistSimple(StatsFmArtistFull raw) {
+        String id = String.valueOf(raw.id);
+        String name = raw.name;
+        Cover cover = raw.image != null ? new Cover(raw.image) : null;
+        return new Artist(id, name, cover, null, null);
+    }
+
+    private List<Artist> mapToArtistsSimple(List<StatsFMArtist> rawList) {
+        if (rawList == null) return List.of();
+        return rawList.stream()
+                .map(this::mapToArtistSimple)
                 .collect(Collectors.toList());
     }
 
-    private java.util.List<ArtistInfo> convertArtists(java.util.List<StatsFMArtist> artists) {
-        return artists.stream()
-                .map(a -> new ArtistInfo(String.valueOf(a.id), a.name, a.image, null, null))
+    private List<Artist> mapToArtistsSimpleFromFull(List<StatsFmArtistFull> rawList) {
+        if (rawList == null) return List.of();
+        return rawList.stream()
+                .map(this::mapToArtistSimple)
                 .collect(Collectors.toList());
     }
 
-    private java.util.List<ReleaseInfo> convertAlbums(java.util.List<StatsFMAlbum> albums) {
-        return albums.stream()
-                .map(a -> new ReleaseInfo(String.valueOf(a.id), a.name, null, 0, a.image))
+    private Release mapToReleaseSimple(StatsFMAlbum rawAlbum) {
+        // Простой релиз без треков и артистов (только id, название, обложка)
+        String id = String.valueOf(rawAlbum.id);
+        String title = rawAlbum.name;
+        Cover cover = rawAlbum.image != null ? new Cover(rawAlbum.image) : null;
+        return new Release(id, title, null, 0, cover, null);
+    }
+
+    private List<Release> mapToReleasesSimple(List<StatsFMAlbum> rawAlbums) {
+        if (rawAlbums == null) return List.of();
+        return rawAlbums.stream()
+                .map(this::mapToReleaseSimple)
                 .collect(Collectors.toList());
     }
+
+    private List<Track> mapToTracks(List<StatsFMTrack> rawTracks) {
+        if (rawTracks == null) return List.of();
+        return rawTracks.stream()
+                .map(this::mapToTrack)
+                .collect(Collectors.toList());
+    }
+
+    // --------------------------------------------------------------
+    // ВНУТРЕННИЕ КЛАССЫ ДЛЯ ХРАНЕНИЯ ПРОМЕЖУТОЧНЫХ ДАННЫХ
+    // --------------------------------------------------------------
+
+    private static class ArtistInfoHolder {
+        String id;
+        String name;
+        String cover;
+        List<Track> popularTracks;
+        List<Release> popularReleases;
+    }
+
+    private static class ReleaseInfoHolder {
+        String id;
+        String title;
+        String cover;
+        long releaseDate;
+        List<Artist> artists;
+        List<Track> tracks;
+    }
+
+    // --------------------------------------------------------------
+    // DTO КЛАССЫ ДЛЯ ДЕСЕРИАЛИЗАЦИИ (STATS.FM)
+    // --------------------------------------------------------------
 
     private static class StatsFMArtist {
         int id;
@@ -280,16 +377,16 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
     }
 
     private static class ExternalIds {
-        java.util.List<String> spotify;
-        java.util.List<String> appleMusic;
+        List<String> spotify;
+        List<String> appleMusic;
         String upc;
         String ean;
         String isrc;
     }
 
     private static class StatsFMTrack {
-        java.util.List<StatsFMAlbum> albums;
-        java.util.List<StatsFMArtist> artists;
+        List<StatsFMAlbum> albums;
+        List<StatsFMArtist> artists;
         double durationMs;
         boolean explicit;
         ExternalIds externalIds;
@@ -301,9 +398,9 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
     }
 
     private static class StatsFMItem {
-        java.util.List<StatsFMTrack> tracks;
-        java.util.List<StatsFMAlbum> albums;
-        java.util.List<StatsFMArtist> artists;
+        List<StatsFMTrack> tracks;
+        List<StatsFMAlbum> albums;
+        List<StatsFMArtist> artists;
     }
 
     private static class StatsFmReleaseFull {
@@ -313,8 +410,8 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
         int spotifyPopularity;
         int totalTracks;
         long releaseDate;
-        java.util.List<String> genres;
-        java.util.List<StatsFMArtist> artists;
+        List<String> genres;
+        List<StatsFMArtist> artists;
         ExternalIds externalIds;
         String type;
         int id;
@@ -323,7 +420,7 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
     private static class StatsFmArtistFull {
         ExternalIds externalIds;
         int followers;
-        java.util.List<String> genres;
+        List<String> genres;
         int id;
         String image;
         String name;
@@ -339,7 +436,7 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
     }
 
     private static class ResReleaseTracks {
-        java.util.List<StatsFMTrack> items;
+        List<StatsFMTrack> items;
     }
 
     private static class ResArtistInfo {
@@ -351,10 +448,10 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
     }
 
     private static class ResTopArtistTracks {
-        java.util.List<StatsFMTrack> items;
+        List<StatsFMTrack> items;
     }
 
     private static class ResTopArtistAlbums {
-        java.util.List<StatsFMAlbum> items;
+        List<StatsFMAlbum> items;
     }
 }

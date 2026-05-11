@@ -159,7 +159,6 @@ class MusicPlayerSettingsHeaderHook:
                 return
 
             if get_private_field(activity, "createSubFragmentCallback") is not None:
-                print("хуй", get_private_field(activity, "createSubFragmentCallback"))
                 return
 
             plugin = self._plugin_ref()
@@ -196,14 +195,16 @@ class PlayerPlugin(BasePlugin):
         self.hook_method(AudioPlayerAlert.getClass().getDeclaredMethod("updateTitle", Boolean.TYPE), UpdateHook(self))
         self.hook_method(AudioPlayerAlert.getClass().getDeclaredMethod("onSubItemClick", Integer.TYPE),
                          SubItemClickHook(self))
-        self.hook_method(BaseFragment.getClass().getDeclaredMethod("showDialog", Dialog),
-                         InterceptStandardPlayerHook(self))
+        # self.hook_method(BaseFragment.getClass().getDeclaredMethod("showDialog", Dialog),
+        #                  InterceptStandardPlayerHook(self))
 
         self._setup_settings_header_hook()
         run_on_queue(self.dex_load)
 
     def on_plugin_unload(self):
         self.remove_settings_menu_items()
+        if MusicPlayer:
+            MusicPlayer.destroy()
         if self.hook_settings_header_ref:
             self.unhook_method(self.hook_settings_header_ref)
             self.hook_settings_header_ref = None
