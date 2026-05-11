@@ -3,15 +3,19 @@ package ru.hoprik.player.hooks;
 import android.app.Dialog;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
+import org.telegram.messenger.MediaController;
+import org.telegram.messenger.MessageObject;
 import org.telegram.ui.ActionBar.BaseFragment;
 
 import java.lang.reflect.Member;
+import java.util.ArrayList;
 import java.util.List;
 
 public class HookRegister {
-    public List<XC_MethodHook.Unhook> hooks;
+    public List<XC_MethodHook.Unhook> hooks = new ArrayList<>();
     public void registerHooks() throws NoSuchMethodException {
         registerHookMethod(BaseFragment.class.getDeclaredMethod("showDialog", Dialog.class), new ReplaceStandardPlayerHook());
+        registerHookMethod(MediaController.class.getDeclaredMethod("playMessage", MessageObject.class, boolean.class), new MediaControllerHook());
     }
 
     private void registerHookAllMethods(Class<?> clazz, String method, Object hook) {

@@ -11,17 +11,17 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 
 import org.telegram.messenger.AndroidUtilities;
-import org.telegram.messenger.MediaController;
 import org.telegram.ui.ActionBar.Theme;
+import ru.hoprik.player.audio.AudioPlayer;
 
 public class PlayerSeekBarView extends LinearLayout {
 
-    private TextView currentTimeView;
-    private TextView remainingTimeView;
-    private SeekBar seekBar;
-    private UpdateManager manager;
+    private final TextView currentTimeView;
+    private final TextView remainingTimeView;
+    private final SeekBar seekBar;
+    private boolean isDragging = false;
 
-    public PlayerSeekBarView(Context context, MusicInfo info) {
+    public PlayerSeekBarView(Context context, AudioPlayer audioPlayer) {
         super(context);
         setOrientation(LinearLayout.VERTICAL);
         setGravity(Gravity.CENTER_HORIZONTAL);
@@ -67,26 +67,25 @@ public class PlayerSeekBarView extends LinearLayout {
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
-                if (b && manager != null && !manager.isDragging()) {
-                    currentTimeView.setText(AndroidUtilities.formatLongDuration((int) ((i / (float) seekBar.getMax()) * info.getAudioProgress())));
-                    info.update(MediaController.getInstance().getPlayingMessageObject());
+                if (b && !isDragging) {
+                    currentTimeView.setText(AndroidUtilities.formatLongDuration((int) ((i / (float) seekBar.getMax()) * audioPlayer.getProgress())));
                 }
             }
 
             @Override
             public void onStartTrackingTouch(SeekBar seekBar) {
-                if (manager != null) manager.setDragging(true);
+                isDragging = true;
             }
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-                MediaController.getInstance().seekToProgress(info.getMessageObject(), (float) seekBar.getProgress() / seekBar.getMax());
-                if (manager != null) manager.setDragging(false);
+                audioPlayer.seek(seekBar.getProgress() / seekBar.getMax());
+                isDragging = false;
             }
         });
 
-        if (info.getAudioProgress() > 0) {
-            int currentProgress = (int) (((float) info.getCurrentDuration() / info.getAudioProgress()) * 100);
+        if (audioPlayer.getProgress() > 0) {
+            int currentProgress = (int) (((float) audioPlayer.getProgress() / audioPlayer.getAudioElement().getTrack().getDuration()) * 100);
             seekBar.setProgress(currentProgress);
         } else {
             seekBar.setProgress(0);
@@ -104,7 +103,7 @@ public class PlayerSeekBarView extends LinearLayout {
         this.currentTimeView = new TextView(context);
         this.currentTimeView.setTextColor(Theme.getColor(Theme.key_player_time));
         this.currentTimeView.setTextSize(12);
-        this.currentTimeView.setText(info.getTimeString());
+        this.currentTimeView.setText(AndroidUtilities.formatLongDuration(audioPlayer.getProgress()));
 
         LinearLayout.LayoutParams currentTimeParams = new LinearLayout.LayoutParams(
                 0,
@@ -116,7 +115,7 @@ public class PlayerSeekBarView extends LinearLayout {
         this.remainingTimeView = new TextView(context);
         this.remainingTimeView.setTextColor(Theme.getColor(Theme.key_player_time));
         this.remainingTimeView.setTextSize(12);
-        this.remainingTimeView.setText(info.getAudioProgressString());
+        this.remainingTimeView.setText(AndroidUtilities.formatLongDuration(audioPlayer.getAudioElement().getTrack().getDuration()));
         this.remainingTimeView.setGravity(Gravity.RIGHT);
 
         LinearLayout.LayoutParams remainingTimeParams = new LinearLayout.LayoutParams(
@@ -144,8 +143,5 @@ public class PlayerSeekBarView extends LinearLayout {
         return seekBar;
     }
 
-    public void setManager(UpdateManager manager) {
-        this.manager = manager;
-    }
 }
 

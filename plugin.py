@@ -202,12 +202,14 @@ class PlayerPlugin(BasePlugin):
         run_on_queue(self.dex_load)
 
     def on_plugin_unload(self):
+        global MusicPlayer
         self.remove_settings_menu_items()
-        if MusicPlayer:
-            MusicPlayer.destroy()
         if self.hook_settings_header_ref:
             self.unhook_method(self.hook_settings_header_ref)
             self.hook_settings_header_ref = None
+        if MusicPlayer:
+            MusicPlayer.destroy()
+            MusicPlayer = None
 
     # ---------- Header creation ----------
     def _setup_settings_header_hook(self):
@@ -283,6 +285,7 @@ class PlayerPlugin(BasePlugin):
             MusicPlayer = clazz.getDeclaredMethod("getInstance").invoke(None)
             self.log("MusicPlayer instance created")
             try:
+                MusicPlayer.load()
                 java_translations = python_dict_to_java_map(localizer.strings)
                 MusicPlayer.setLocalizations(java_translations)
                 self.log("Translations passed successfully")
@@ -444,6 +447,7 @@ class PlayerPlugin(BasePlugin):
             "enable_feature_share",
             "enable_feature_save",
             "enable_background_dominant"
+            "enable_audioplayer"
         ]
         for key in keys:
             py_val = self.get_setting(key, True)
@@ -517,14 +521,3 @@ class SubItemClickHook(MethodHook):
             param.setResult(None)
             self.plugin.setup_player_ui()
             param.thisObject.dismiss()
-
-
-class InterceptStandardPlayerHook(MethodHook):
-    def __init__(self, plugin: BasePlugin):
-        self.plugin = plugin
-
-    def before_hooked_method(self, param):
-        dialog = param.args[0]
-        if isinstance(dialog, AudioPlayerAlert) and self.plugin.get_setting("enable_audioplayer", False):
-            param.setResult(None)
-            self.plugin.setup_player_ui()

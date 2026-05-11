@@ -1,7 +1,6 @@
 package ru.hoprik.player.api.providers;
 
 import android.util.Log;
-import com.google.android.exoplayer2.ext.ffmpeg.FfmpegLibrary;
 import com.google.gson.Gson;
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -14,7 +13,10 @@ import ru.hoprik.player.api.interfaces.info.IFindMusicInfo;
 import ru.hoprik.player.api.interfaces.info.IReleaseInfo;
 import ru.hoprik.player.api.interfaces.info.ITrackInfo;
 import ru.hoprik.player.api.objects.FindMusicInfo;
-import ru.hoprik.player.audio.*;
+import ru.hoprik.player.audio.objects.Artist;
+import ru.hoprik.player.audio.objects.Cover;
+import ru.hoprik.player.audio.objects.Release;
+import ru.hoprik.player.audio.objects.Track;
 
 import java.io.IOException;
 import java.util.List;
@@ -82,7 +84,9 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
                         holder.name,
                         holder.cover != null ? new Cover(holder.cover) : null,
                         holder.popularTracks,
-                        holder.popularReleases
+                        holder.popularReleases,
+                        true,
+                        false
                 );
                 callback.onSuccess(artist);
             } else {
@@ -274,18 +278,15 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
     private Track mapToTrack(StatsFMTrack raw) {
         String id = String.valueOf(raw.id);
         String name = raw.name;
-        // Конвертируем артистов
         List<Artist> artists = raw.artists.stream()
                 .map(this::mapToArtistSimple)
                 .collect(Collectors.toList());
         int durationMs = (int) raw.durationMs;
-        // Берём обложку из первого альбома (если есть)
         Cover cover = null;
         if (raw.albums != null && !raw.albums.isEmpty()) {
             cover = new Cover(raw.albums.get(0).image);
         }
-        // Release пока не заполняем (можно позже через getReleaseInfo)
-        return new Track(id, name, artists, durationMs, 0, cover, null);
+        return new Track(id, name, artists, durationMs, 0, cover, null, true, false);
     }
 
     private Artist mapToArtistSimple(StatsFMArtist raw) {
@@ -293,14 +294,14 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
         String name = raw.name;
         Cover cover = raw.image != null ? new Cover(raw.image) : null;
         // Без популярных треков и альбомов (заполняются отдельно)
-        return new Artist(id, name, cover, null, null);
+        return new Artist(id, name, cover, null, null, true, false);
     }
 
     private Artist mapToArtistSimple(StatsFmArtistFull raw) {
         String id = String.valueOf(raw.id);
         String name = raw.name;
         Cover cover = raw.image != null ? new Cover(raw.image) : null;
-        return new Artist(id, name, cover, null, null);
+        return new Artist(id, name, cover, null, null, true, false);
     }
 
     private List<Artist> mapToArtistsSimple(List<StatsFMArtist> rawList) {

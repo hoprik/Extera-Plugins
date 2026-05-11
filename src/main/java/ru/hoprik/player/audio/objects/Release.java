@@ -1,4 +1,4 @@
-package ru.hoprik.player.audio;
+package ru.hoprik.player.audio.objects;
 
 import java.util.List;
 

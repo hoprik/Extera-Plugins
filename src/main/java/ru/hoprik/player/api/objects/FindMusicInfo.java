@@ -1,9 +1,8 @@
 package ru.hoprik.player.api.objects;
 
-import ru.hoprik.player.api.providers.StatsFM;
-import ru.hoprik.player.audio.Artist;
-import ru.hoprik.player.audio.Release;
-import ru.hoprik.player.audio.Track;
+import ru.hoprik.player.audio.objects.Artist;
+import ru.hoprik.player.audio.objects.Release;
+import ru.hoprik.player.audio.objects.Track;
 
 import java.util.List;
 

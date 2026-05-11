@@ -9,13 +9,15 @@ import android.widget.TextView;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.ui.ActionBar.SimpleTextView;
 import org.telegram.ui.ActionBar.Theme;
+import ru.hoprik.player.audio.objects.Artist;
+import ru.hoprik.player.audio.objects.Track;
 
 public class SongInfoView extends LinearLayout {
 
     private SimpleTextView songView;
-    private TextView authorView;
+    private LinearLayout authorView;
 
-    public SongInfoView(Context context, MusicInfo musicInfo) {
+    public SongInfoView(Context context, Track track) {
         super(context);
         setOrientation(LinearLayout.VERTICAL);
         LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(
@@ -35,18 +37,17 @@ public class SongInfoView extends LinearLayout {
         this.songView.setTextColor(Theme.getColor(Theme.key_player_actionBarTitle));
         this.songView.setTextSize(20);
         this.songView.setTypeface(AndroidUtilities.bold());
-        this.songView.setText(musicInfo.getCurrentTitle());
+        this.songView.setText(track.getName());
         this.songView.setLayoutParams(textParams);
         this.songView.setScrollNonFitText(true);
 
-        this.authorView = new TextView(context);
-        this.authorView.setTextColor(Theme.getColor(Theme.key_player_actionBarSubtitle));
-        this.authorView.setTextSize(16);
-        this.authorView.setSingleLine(true);
-        this.authorView.setEllipsize(TextUtils.TruncateAt.END);
-        this.authorView.setText(musicInfo.getCurrentAuthor());
-        this.authorView.setAlpha(0.8f);
-        this.authorView.setLayoutParams(textParams);
+        if (track.getArtists().isEmpty()) {
+            this.authorView = new LinearLayout(context);
+            this.authorView.setLayoutParams(textParams);
+            for (Artist artist : track.getArtists()) {
+                this.authorView.addView(new ArtistTextView(context, artist));
+            }
+        }
 
         addView(this.songView);
         addView(this.authorView);
@@ -56,7 +57,7 @@ public class SongInfoView extends LinearLayout {
         return songView;
     }
 
-    public TextView getAuthorView() {
+    public LinearLayout getAuthorView() {
         return authorView;
     }
 }

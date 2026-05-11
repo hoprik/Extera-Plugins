@@ -10,7 +10,7 @@ public class ReplaceStandardPlayerHook extends XC_MethodHook {
         Object arg = methodHookParam.args[0];
         if (arg instanceof AudioPlayerAlert && MusicPlayer.getInstance().isFeatureEnabled("enable_audioplayer", true)){
             methodHookParam.setResult(null);
-            MusicPlayer.getInstance().startPlayerUI(LaunchActivity.getSafeLastFragment());
+//            MusicPlayer.getInstance().startPlayerUI(HookUtils.getFragment());
         }
     }
 }

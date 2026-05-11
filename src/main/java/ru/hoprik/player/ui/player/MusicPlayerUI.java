@@ -17,11 +17,11 @@ import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.*;
-import org.telegram.ui.Components.MotionBackgroundDrawable;
 import ru.hoprik.player.MusicPlayer;
+import ru.hoprik.player.audio.AudioPlayer;
+import ru.hoprik.player.audio.objects.Track;
 import ru.hoprik.player.ui.player.components.*;
 import ru.hoprik.player.helpers.ControlsHelpers;
-import ru.hoprik.player.helpers.ImageHelper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,15 +33,11 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
     PlaylistContainerView playlistContainerView;
     PrimaryControlsView primaryControlsView;
 
-    UpdateManager manager;
-
     boolean enableShuffle;
     boolean enableDownload;
     boolean enableShare;
     boolean enableSave;
     boolean enableSaveProfile;
-
-    private MotionBackgroundDrawable motionBackgroundDrawable;
 
     public MusicPlayerUI() {
         this.enableShuffle = MusicPlayer.getInstance().isFeatureEnabled("enable_feature_shuffle", true);
@@ -132,8 +128,8 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
 
         scrollView.setLayoutParams(scrollParams);
 
-        MusicInfo info = new MusicInfo(MediaController.getInstance().getPlayingMessageObject());
-        if (info.getMessageObject() == null) {
+        AudioPlayer player = new AudioPlayer();
+        if (player.getAudioElement() == null) {
             renderError(container, context);
             return fragmentView;
         }
@@ -239,28 +235,23 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
                         primaryControlsView.setPlayPauseState(!MediaController.getInstance().isMessagePaused(), false);
                     }
                     refreshPlaylistIfReady();
-                    if (manager != null) manager.updateUI();
                 },
                 () -> {
                     if (primaryControlsView != null) {
                         primaryControlsView.setPlayPauseState(!MediaController.getInstance().isMessagePaused(), false);
                     }
                     refreshPlaylistIfReady();
-                    if (manager != null) manager.updateUI();
                 }
         );
         main_layout.addView(avatarCover);
 
-        SongInfoView songInfoView = new SongInfoView(context, info);
+        SongInfoView songInfoView = new SongInfoView(context, player.getAudioElement().getTrack());
         main_layout.addView(songInfoView);
 
-        PlayerSeekBarView playerSeekBarView = new PlayerSeekBarView(context, info);
+        PlayerSeekBarView playerSeekBarView = new PlayerSeekBarView(context, player);
         main_layout.addView(playerSeekBarView);
 
-        primaryControlsView = new PrimaryControlsView(context, this.enableShuffle, () -> {
-            refreshPlaylistIfReady();
-            if (manager != null) manager.updateUI();
-        });
+        primaryControlsView = new PrimaryControlsView(context, this.enableShuffle, this::refreshPlaylistIfReady);
         main_layout.addView(primaryControlsView);
 
         View space = new View(context);
@@ -270,26 +261,8 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
         ));
         main_layout.addView(space);
 
-        SecondaryControlsView secondaryControlsView = new SecondaryControlsView(context, getElements(info));
+        SecondaryControlsView secondaryControlsView = new SecondaryControlsView(context, getElements(player.getAudioElement().getTrack()));
         main_layout.addView(secondaryControlsView);
-
-        ImageHelper.updateCover(info.getMessageObject(), avatarCover, false);
-        ImageHelper.updateCover(info.getMessageObject(), backgroundView.getBackgroundImage(), true);
-
-        this.manager = new UpdateManager(
-                info,
-                songInfoView.getSongView(),
-                songInfoView.getAuthorView(),
-                avatarCover,
-                backgroundView.getBackgroundImage(),
-                overlayColor,
-                playerSeekBarView.getCurrentTimeView(),
-                playerSeekBarView.getRemainingTimeView(),
-                playerSeekBarView.getSeekBar(),
-                this::refreshPlaylistIfReady
-        );
-        playerSeekBarView.setManager(this.manager);
-        this.manager.startUpdater();
 
         View space2 = new View(context);
         space2.setLayoutParams(new LinearLayout.LayoutParams(
@@ -304,7 +277,6 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
                 primaryControlsView.setPlayPauseState(!MediaController.getInstance().isMessagePaused(), false);
             }
             refreshPlaylistIfReady();
-            if (manager != null) manager.updateUI();
         });
         main_layout.addView(playlistContainerView);
 
@@ -353,9 +325,7 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
 
     @Override
     public void onFragmentClosed() {
-        if (this.manager != null) {
-            this.manager.stopUpdater();
-        }
+
     }
 
     private void refreshPlaylistIfReady() {
@@ -364,7 +334,7 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
         }
     }
 
-    private List<ControlsElement> getElements(MusicInfo info) {
+    private List<ControlsElement> getElements(Track info) {
         List<ControlsElement> list = new ArrayList<>();
         if (enableSaveProfile) {
             list.add(new ControlsElement(
@@ -395,7 +365,7 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
         if (enableDownload) {
             list.add(new ControlsElement(
                     () -> {
-                        ControlsHelpers.saveToMusic(info.getMessageObject(), this.getParentActivity());
+//                        ControlsHelpers.saveToMusic(info.getMessageObject(), this.getParentActivity());
                         BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_download, MusicPlayer.getInstance().getString("downloaded")).show(true);
                     },
                     R.drawable.msg_download,
@@ -405,7 +375,8 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
         if (enableShare) {
             list.add(new ControlsElement(
                     () -> {
-                        ControlsHelpers.share(info.getMessageObject(), this.getParentActivity());
+//                        TODO
+//                        ControlsHelpers.share(info.getMessageObject(), this.getParentActivity());
                     },
                     R.drawable.share,
                     false
@@ -414,7 +385,7 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
         if (enableSave) {
             list.add(new ControlsElement(
                     () -> {
-                        ControlsHelpers.forward(info.getMessageObject(), UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId());
+//                        ControlsHelpers.forward(info.getMessageObject(), UserConfig.getInstance(UserConfig.selectedAccount).getClientUserId());
                         BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_save_to_music, MusicPlayer.getInstance().getString("saved")).show(true);
                     },
                     R.drawable.msg_save_story,

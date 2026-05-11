@@ -170,11 +170,11 @@ public class PlaylistContainerView extends LinearLayout {
         playingIcon.setVisibility(View.GONE);
         itemView.addView(playingIcon);
 
-        MusicInfo info = new MusicInfo(message);
-        ImageHelper.updateCover(message, cover, false);
-        title.setText(info.getCurrentTitle());
-        author.setText(info.getCurrentAuthor());
-        duration.setText(info.getAudioProgressString());
+//        MusicInfo info = new MusicInfo(message);
+//        ImageHelper.updateCover(message, cover, false);
+//        title.setText(info.getCurrentTitle());
+//        author.setText(info.getCurrentAuthor());
+//        duration.setText(info.getAudioProgressString());
 
         TrackItemHolder holder = new TrackItemHolder();
         holder.container = itemView;
