@@ -6,6 +6,8 @@ import org.telegram.messenger.browser.Browser;
 import org.telegram.ui.ActionBar.BaseFragment;
 import ru.hoprik.player.api.ApiClient;
 import ru.hoprik.player.audio.AudioPlayer;
+import ru.hoprik.player.audio.holder.AudioElement;
+import ru.hoprik.player.audio.holder.AudioSource;
 import ru.hoprik.player.audio.objects.Artist;
 import ru.hoprik.player.audio.objects.Track;
 import ru.hoprik.player.hooks.HookRegister;
@@ -55,11 +57,19 @@ public class MusicPlayer {
     }
 
     public void startPlayerUI(BaseFragment baseFragment) {
+        test();
+        baseFragment.presentFragment(new MusicPlayerUI());
+    }
+
+    private void test(){
         List<Artist> artists = new ArrayList<>();
         artists.add(new Artist("0", "Mayot", null, new ArrayList<>(), new ArrayList<>(), false, true));
-        audioPlayer.play("https://fine.sunproxy.net/file/aXRqYUJQRDYzUVpnNkpSbzV3eXpqbU80Snh1VHVGYlNENnB4aElzTTFIbHl1RDRHbTM3UVlCbVpuVCtGSnhzdXFYUTBFbEErMUVOSjRuSWVpdXRsbVJ1S3VQd3lsK1FhbVhlR0pseDNaMnc9/MAYOT_-_Logika_(GuruMP3.com).mp3",
-                new Track("0", "Логика", artists, 100, 0, null, null, false, true));
-        baseFragment.presentFragment(new MusicPlayerUI());
+        List<AudioElement> audioElements = new ArrayList<>();
+        audioElements.add(new AudioElement(AudioSource.ofUrl("https://fine.sunproxy.net/file/aXRqYUJQRDYzUVpnNkpSbzV3eXpqbU80Snh1VHVGYlNENnB4aElzTTFIbHl1RDRHbTM3UVlCbVpuVCtGSnhzdXFYUTBFbEErMUVOSjRuSWVpdXRsbVJ1S3VQd3lsK1FhbVhlR0pseDNaMnc9/MAYOT_-_Logika_(GuruMP3.com).mp3"),
+                new Track("0", "Логика", artists, 100, 0, null, null, false, true)));
+        audioElements.add(new AudioElement(AudioSource.ofUrl("https://fine.sunproxy.net/file/R1NobVRWZUhVQTBicWY0SnpUYy9Mdnpuc05ZVVlPVjd1VTBFV2x6OVBZRElnRjBJSGwveDg2R0xWNGZIcG9wSWxiRGMvZUV4MDRhdlZocTRpWm1OME1ETHhiSExJZGozUTJLNXBjd1d5MGs9/MAYOT_-_Lagayu_(SkySound.cc).mp3"),
+                new Track("0", "Лагаю", artists, 100, 0, null, null, false, true)));
+        audioPlayer.playPlaylist(audioElements);
     }
 
     public void openBrowser(BaseFragment fragment) {

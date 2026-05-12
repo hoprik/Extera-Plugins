@@ -1,26 +1,47 @@
 package ru.hoprik.player.hooks;
 
+import android.animation.ValueAnimator;
 import android.media.AudioManager;
 import android.net.Uri;
-import android.animation.ValueAnimator;
+import android.util.Log;
 import android.view.animation.LinearInterpolator;
 
 import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import de.robv.android.xposed.XC_MethodHook;
-import org.telegram.messenger.AndroidUtilities;
-import org.telegram.messenger.ApplicationLoader;
-import org.telegram.messenger.MediaController;
-import org.telegram.messenger.MessageObject;
-import org.telegram.messenger.MusicPlayerService;
-import org.telegram.messenger.NotificationCenter;
-import org.telegram.messenger.SharedConfig;
+import org.telegram.messenger.*;
 import org.telegram.ui.ChatActivity;
 import org.telegram.ui.Components.VideoPlayer;
 
 import java.util.ArrayList;
 
 public class MediaControllerHook extends XC_MethodHook {
+
+    private static Boolean hasCastSync = null;
+    private static Object castSyncInstance = null;
+    private static Boolean hasChromecast = null;
+    private static Object chromecastInstance = null;
+
+    private static void initOptionalComponents() {
+        if (hasCastSync == null) {
+            try {
+                Class<?> cls = Class.forName("org.telegram.messenger.CastSync");
+                castSyncInstance = cls.getMethod("getInstance").invoke(null);
+                hasCastSync = true;
+            } catch (Exception e) {
+                hasCastSync = false;
+            }
+        }
+        if (hasChromecast == null) {
+            try {
+                Class<?> cls = Class.forName("org.telegram.messenger.ChromecastController");
+                chromecastInstance = cls.getMethod("getInstance").invoke(null);
+                hasChromecast = true;
+            } catch (Exception e) {
+                hasChromecast = false;
+            }
+        }
+    }
 
     @Override
     protected void beforeHookedMethod(MethodHookParam param) {
@@ -29,83 +50,89 @@ public class MediaControllerHook extends XC_MethodHook {
         MediaController controller = (MediaController) param.thisObject;
 
         String attachPath = messageObject.messageOwner.attachPath;
-        if (attachPath != null && (attachPath.startsWith("http://") || attachPath.startsWith("https://"))) {
-            param.setResult(false);
-            AndroidUtilities.runOnUIThread(() -> playHttpStream(controller, messageObject, silent));
+        if (attachPath == null || (!attachPath.startsWith("http://") && !attachPath.startsWith("https://"))) {
+            return;
         }
+
+        // Проверка на повторное воспроизведение того же сообщения
+        VideoPlayer existingPlayer = (VideoPlayer) HookUtils.getPrivateField(controller, "audioPlayer");
+        MessageObject currentPlaying = (MessageObject) HookUtils.getPrivateField(controller, "playingMessageObject");
+        if (existingPlayer != null && currentPlaying != null && currentPlaying.getId() == messageObject.getId()) {
+            boolean isPaused = (boolean) HookUtils.getPrivateField(controller, "isPaused");
+            if (isPaused) {
+                HookUtils.invokePrivateMethod(controller, "resumeAudio", new Class[]{MessageObject.class}, messageObject);
+            }
+            if (!SharedConfig.enabledRaiseTo(true)) {
+                ChatActivity raiseChat = (ChatActivity) HookUtils.getPrivateField(controller, "raiseChat");
+                if (raiseChat != null) {
+                    HookUtils.invokePrivateMethod(controller, "startRaiseToEarSensors", new Class[]{ChatActivity.class}, raiseChat);
+                }
+            }
+            param.setResult(true);
+            return;
+        }
+
+        param.setResult(false);
+        AndroidUtilities.runOnUIThread(() -> playHttpStream(controller, messageObject, silent));
     }
 
     private void playHttpStream(MediaController controller, MessageObject messageObject, boolean silent) {
         try {
-            // 1. Очистка и сброс состояния (как в оригинале)
             controller.cleanupPlayer(true, false);
+
             HookUtils.setPrivateField(controller, "downloadingCurrentMessage", false);
             HookUtils.setPrivateField(controller, "lastProgress", 0);
-            HookUtils.setPrivateField(controller, "seekToProgressPending", 0);
+            HookUtils.setPrivateField(controller, "seekToProgressPending", 0f);
             HookUtils.setPrivateField(controller, "audioInfo", null);
             HookUtils.setPrivateField(controller, "shouldSavePositionForCurrentAudio", null);
             HookUtils.setPrivateField(controller, "playingMessageObject", messageObject);
             HookUtils.setPrivateField(controller, "isPaused", false);
 
-            // 2. Увеличиваем playerNum для уникальности тега
             int playerNum = (int) HookUtils.getPrivateField(controller, "playerNum");
             playerNum++;
             HookUtils.setPrivateField(controller, "playerNum", playerNum);
             final int currentTag = playerNum;
 
-            // 3. Создаём плеер
             VideoPlayer audioPlayer = new VideoPlayer();
             HookUtils.setPrivateField(controller, "audioPlayer", audioPlayer);
 
-            // Сохраняем позицию для seek, если была
             if (messageObject.audioProgress != 0) {
                 HookUtils.setPrivateField(controller, "seekToProgressPending", messageObject.audioProgress);
                 messageObject.audioProgress = 0;
             }
 
-            // 4. Делегат с полной логикой (seek, cast, окончание)
             audioPlayer.setDelegate(new VideoPlayer.VideoPlayerDelegate() {
                 @Override
                 public void onStateChanged(boolean playWhenReady, int playbackState) {
                     int nowNum = (int) HookUtils.getPrivateField(controller, "playerNum");
                     if (nowNum != currentTag) return;
 
-                    // Обработка seekToProgressPending (как в оригинале)
                     float seekToProgress = (float) HookUtils.getPrivateField(controller, "seekToProgressPending");
                     if (audioPlayer != null && seekToProgress != 0 &&
-                            (playbackState == 3|| playbackState == 1)) {
+                            (playbackState == 3 || playbackState == 1)) {
                         long duration = audioPlayer.getDuration();
                         int seekTo = (int) (duration * seekToProgress);
                         audioPlayer.seekTo(seekTo);
                         HookUtils.setPrivateField(controller, "lastProgress", seekTo);
                         HookUtils.setPrivateField(controller, "seekToProgressPending", 0f);
-
-                        // Синхронизация с CastSync, если не ignorePlayerUpdate
                         boolean ignorePlayerUpdate = (boolean) HookUtils.getPrivateField(controller, "ignorePlayerUpdate");
-                        if (!ignorePlayerUpdate) {
+                        if (!ignorePlayerUpdate && hasCastSync != null && hasCastSync) {
                             try {
-                                Class<?> castSyncClass = Class.forName("org.telegram.messenger.CastSync");
-                                Object castSyncInstance = castSyncClass.getMethod("getInstance").invoke(null);
-                                castSyncClass.getMethod("seekTo", int.class).invoke(castSyncInstance, seekTo);
-                            } catch (Exception e) {}
+                                castSyncInstance.getClass().getMethod("seekTo", int.class).invoke(castSyncInstance, seekTo);
+                            } catch (Exception ignored) {}
                         }
                     }
 
-                    // Mute при активном CastSync
-                    if (audioPlayer != null) {
+                    if (audioPlayer != null && hasCastSync != null && hasCastSync) {
                         try {
-                            Class<?> castSyncClass = Class.forName("org.telegram.messenger.CastSync");
-                            Object castSyncInstance = castSyncClass.getMethod("getInstance").invoke(null);
-                            boolean isActive = (boolean) castSyncClass.getMethod("isActive").invoke(castSyncInstance);
-                            if (isActive) {
-                                audioPlayer.setMute(true);
-                            }
-                        } catch (Exception e) {}
+                            boolean isActive = (boolean) castSyncInstance.getClass().getMethod("isActive").invoke(castSyncInstance);
+                            if (isActive) audioPlayer.setMute(true);
+                        } catch (Exception ignored) {}
                     }
 
-                    // Окончание трека с логикой плейлиста (как в оригинале)
                     if (playbackState == 4) {
                         AndroidUtilities.runOnUIThread(() -> {
+
                             messageObject.audioProgress = 1f;
                             NotificationCenter.getInstance(messageObject.currentAccount)
                                     .postNotificationName(NotificationCenter.messagePlayingProgressDidChanged, messageObject.getId(), 0);
@@ -117,40 +144,33 @@ public class MediaControllerHook extends XC_MethodHook {
                                     HookUtils.invokePrivateMethod(controller, "playNextMessageWithoutOrder", new Class[]{boolean.class}, true);
                                 } else {
                                     Boolean noNext = (Boolean) HookUtils.invokePrivateMethodWithReturn(controller, "hasNoNextVoiceOrRoundVideoMessage", new Class[]{});
-                                    if (noNext == null) noNext = true;
-                                    controller.cleanupPlayer(true, noNext, isVoice, false);
+                                    controller.cleanupPlayer(true, noNext != null && noNext, isVoice, false);
                                 }
                             }
                         });
                     }
                 }
-
-                @Override
-                public void onError(VideoPlayer player, Exception e) {
-                    e.printStackTrace();
+                @Override public void onError(VideoPlayer player, Exception e) {
                     AndroidUtilities.runOnUIThread(() -> controller.cleanupPlayer(true, true));
                 }
-
-                @Override public void onVideoSizeChanged(int width, int height, int unappliedRotationDegrees, float pixelWidthHeightRatio) {}
+                @Override public void onVideoSizeChanged(int w, int h, int rot, float ratio) {}
                 @Override public void onRenderedFirstFrame() {}
-                @Override public void onRenderedFirstFrame(AnalyticsListener.EventTime eventTime) {}
-                @Override public void onSeekFinished(AnalyticsListener.EventTime eventTime) {}
-                @Override public void onSeekStarted(AnalyticsListener.EventTime eventTime) {}
-                @Override public void onSurfaceTextureUpdated(android.graphics.SurfaceTexture surfaceTexture) {}
-                @Override public boolean onSurfaceDestroyed(android.graphics.SurfaceTexture surfaceTexture) { return false; }
+                @Override public void onRenderedFirstFrame(AnalyticsListener.EventTime et) {}
+                @Override public void onSeekFinished(AnalyticsListener.EventTime et) {}
+                @Override public void onSeekStarted(AnalyticsListener.EventTime et) {}
+                @Override public void onSurfaceTextureUpdated(android.graphics.SurfaceTexture st) {}
+                @Override public boolean onSurfaceDestroyed(android.graphics.SurfaceTexture st) { return false; }
             });
 
-            // 5. Подготовка плеера с URL
             Uri uri = Uri.parse(messageObject.messageOwner.attachPath);
             audioPlayer.preparePlayer(uri, "other");
             audioPlayer.setStreamType(AudioManager.STREAM_MUSIC);
 
-            // 6. Вызов приватных методов (checkAudioFocus, setPlayerVolume, startProgressTimer)
             HookUtils.invokePrivateMethod(controller, "checkAudioFocus", new Class[]{MessageObject.class, boolean.class}, messageObject, true);
             HookUtils.invokePrivateMethod(controller, "setPlayerVolume", new Class[]{});
             HookUtils.invokePrivateMethod(controller, "startProgressTimer", new Class[]{MessageObject.class}, messageObject);
 
-            // 7. Анимация громкости (как в оригинале для музыки)
+            // Анимация громкости (оставлена)
             if (!messageObject.isVoice()) {
                 ValueAnimator audioVolumeAnimator = (ValueAnimator) HookUtils.getPrivateField(controller, "audioVolumeAnimator");
                 if (audioVolumeAnimator != null) {
@@ -173,14 +193,11 @@ public class MediaControllerHook extends XC_MethodHook {
                 HookUtils.invokePrivateMethod(controller, "setPlayerVolume", new Class[]{});
             }
 
-            // 8. Запуск воспроизведения
             audioPlayer.play();
 
-            // 9. Уведомление о старте
             NotificationCenter.getInstance(messageObject.currentAccount)
                     .postNotificationName(NotificationCenter.messagePlayingDidStart, messageObject, null);
 
-            // 10. Управление MusicPlayerService (как в оригинале: старт или стоп)
             Boolean canStart = (Boolean) HookUtils.invokePrivateMethodWithReturn(controller, "canStartMusicPlayerService", new Class[]{});
             android.content.Intent intent = new android.content.Intent(ApplicationLoader.applicationContext, MusicPlayerService.class);
             if (canStart != null && canStart) {
@@ -189,29 +206,24 @@ public class MediaControllerHook extends XC_MethodHook {
                 ApplicationLoader.applicationContext.stopService(intent);
             }
 
-            // 11. CastSync и Chromecast (как в оригинале)
-            try {
-                Class<?> castSyncClass = Class.forName("org.telegram.messenger.CastSync");
-                Object castSyncInstance = castSyncClass.getMethod("getInstance").invoke(null);
-                castSyncClass.getMethod("check", int.class).invoke(castSyncInstance, 1); // TYPE_MUSIC = 1
-
-                boolean ignorePlayerUpdate = (boolean) HookUtils.getPrivateField(controller, "ignorePlayerUpdate");
-                if (!ignorePlayerUpdate) {
-                    // ChromecastController
-                    try {
-                        Class<?> chromecastClass = Class.forName("org.telegram.messenger.ChromecastController");
-                        Object chromecastInstance = chromecastClass.getMethod("getInstance").invoke(null);
-                        boolean isCasting = (boolean) chromecastClass.getMethod("isCasting").invoke(chromecastInstance);
-                        if (isCasting) {
-                            Object currentMedia = HookUtils.invokePrivateMethodWithReturn(controller, "getCurrentChromecastMedia", new Class[]{});
-                            chromecastClass.getMethod("setCurrentMediaAndCastIfNeeded", Object.class).invoke(chromecastInstance, currentMedia);
+            initOptionalComponents();
+            if (hasCastSync != null && hasCastSync) {
+                try {
+                    castSyncInstance.getClass().getMethod("check", int.class).invoke(castSyncInstance, 1);
+                    boolean ignorePlayerUpdate = (boolean) HookUtils.getPrivateField(controller, "ignorePlayerUpdate");
+                    if (!ignorePlayerUpdate) {
+                        if (hasChromecast != null && hasChromecast && chromecastInstance != null) {
+                            boolean isCasting = (boolean) chromecastInstance.getClass().getMethod("isCasting").invoke(chromecastInstance);
+                            if (isCasting) {
+                                Object currentMedia = HookUtils.invokePrivateMethodWithReturn(controller, "getCurrentChromecastMedia", new Class[]{});
+                                chromecastInstance.getClass().getMethod("setCurrentMediaAndCastIfNeeded", Object.class).invoke(chromecastInstance, currentMedia);
+                            }
                         }
-                    } catch (Exception e) {}
-                    castSyncClass.getMethod("setPlaying", boolean.class).invoke(castSyncInstance, true);
-                }
-            } catch (Exception e) {}
+                        castSyncInstance.getClass().getMethod("setPlaying", boolean.class).invoke(castSyncInstance, true);
+                    }
+                } catch (Exception ignored) {}
+            }
 
-            // 12. Сенсор приближения (опционально)
             if (!SharedConfig.enabledRaiseTo(true)) {
                 ChatActivity raiseChat = (ChatActivity) HookUtils.getPrivateField(controller, "raiseChat");
                 if (raiseChat != null) {

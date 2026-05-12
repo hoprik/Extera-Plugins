@@ -2,13 +2,18 @@ package ru.hoprik.player.audio;
 
 import org.telegram.messenger.MediaController;
 import org.telegram.messenger.MessageObject;
+import org.telegram.messenger.NotificationCenter;
+import org.telegram.messenger.UserConfig;
 import ru.hoprik.player.audio.holder.AudioElement;
 import ru.hoprik.player.audio.holder.AudioSource;
 import ru.hoprik.player.audio.objects.Track;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
-public class AudioPlayer {
+public class AudioPlayer implements NotificationCenter.NotificationCenterDelegate{
     private AudioElement playingElement;
     private boolean playing;
     private int progress;
@@ -32,6 +37,12 @@ public class AudioPlayer {
 
     public void play(String url, Track track) {
         play(new AudioElement(AudioSource.ofUrl(url), track));
+    }
+
+    public void playPlaylist(List<AudioElement> element){
+        if(element.isEmpty()) return;
+        ArrayList<MessageObject> messages = element.stream().map(AudioElement::getAudio).collect(Collectors.toCollection(ArrayList::new));
+        MediaController.getInstance().setPlaylist(messages, messages.get(0), -1);
     }
 
     public void stop() {
@@ -80,5 +91,28 @@ public class AudioPlayer {
 
     public boolean isPlaying() {
         return playing;
+    }
+
+    public void load(){
+        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.messagePlayingDidReset);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.messagePlayingDidStart);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.messagePlayingProgressDidChanged);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.fileLoaded);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.fileLoadProgressChanged);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.musicDidLoad);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.moreMusicDidLoad);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.musicIdsLoaded);
+        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.messagePlayingSpeedChanged);
+    }
+
+    public void destroy() {
+
+    }
+
+    @Override
+    public void didReceivedNotification(int i, int i1, Object... objects) {
+        if (i == NotificationCenter.messagePlayingProgressDidChanged) {
+        }
     }
 }

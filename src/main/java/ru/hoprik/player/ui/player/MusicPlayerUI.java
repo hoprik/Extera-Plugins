@@ -128,7 +128,7 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
 
         scrollView.setLayoutParams(scrollParams);
 
-        AudioPlayer player = new AudioPlayer();
+        AudioPlayer player = MusicPlayer.getInstance().getAudioPlayer();;
         if (player.getAudioElement() == null) {
             renderError(container, context);
             return fragmentView;
@@ -434,7 +434,9 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
 
     @Override
     public void didReceivedNotification(int i, int i1, Object... objects) {
+        if (i == NotificationCenter.messagePlayingDidReset){
 
+        }
     }
 
     @Override
