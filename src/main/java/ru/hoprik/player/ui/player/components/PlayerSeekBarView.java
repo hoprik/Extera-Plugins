@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.GradientDrawable;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
@@ -11,10 +12,13 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.NotificationCenter;
+import org.telegram.messenger.UserConfig;
 import org.telegram.ui.ActionBar.Theme;
+import ru.hoprik.player.MusicPlayer;
 import ru.hoprik.player.audio.AudioPlayer;
 
-public class PlayerSeekBarView extends LinearLayout {
+public class PlayerSeekBarView extends LinearLayout implements NotificationCenter.NotificationCenterDelegate {
 
     private final TextView currentTimeView;
     private final TextView remainingTimeView;
@@ -23,6 +27,7 @@ public class PlayerSeekBarView extends LinearLayout {
 
     public PlayerSeekBarView(Context context, AudioPlayer audioPlayer) {
         super(context);
+        register();
         setOrientation(LinearLayout.VERTICAL);
         setGravity(Gravity.CENTER_HORIZONTAL);
 
@@ -79,13 +84,13 @@ public class PlayerSeekBarView extends LinearLayout {
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-                audioPlayer.seek(seekBar.getProgress() / seekBar.getMax());
+                audioPlayer.seek((float) seekBar.getProgress() / seekBar.getMax());
                 isDragging = false;
             }
         });
 
         if (audioPlayer.getProgress() > 0) {
-            int currentProgress = (int) (((float) audioPlayer.getProgress() / audioPlayer.getAudioElement().getTrack().getDuration()) * 100);
+            int currentProgress = (int) ((audioPlayer.getProgress() / audioPlayer.getAudioElement().getTrack().getDuration()) * 100);
             seekBar.setProgress(currentProgress);
         } else {
             seekBar.setProgress(0);
@@ -103,7 +108,7 @@ public class PlayerSeekBarView extends LinearLayout {
         this.currentTimeView = new TextView(context);
         this.currentTimeView.setTextColor(Theme.getColor(Theme.key_player_time));
         this.currentTimeView.setTextSize(12);
-        this.currentTimeView.setText(AndroidUtilities.formatLongDuration(audioPlayer.getProgress()));
+        this.currentTimeView.setText(AndroidUtilities.formatLongDuration((int) audioPlayer.getProgress()));
 
         LinearLayout.LayoutParams currentTimeParams = new LinearLayout.LayoutParams(
                 0,
@@ -143,5 +148,41 @@ public class PlayerSeekBarView extends LinearLayout {
         return seekBar;
     }
 
+    private void updateProgress(float progress) {
+        AudioPlayer audioPlayer = MusicPlayer.getInstance().getAudioPlayer();
+        if (audioPlayer == null || isDragging) return;
+        float progressPSec = AudioPlayer.convertProgress(progress, audioPlayer.getAudioElement());
+        Log.d("PlayerSeekBarView", "updateProgress: " + progressPSec);
+        currentTimeView.setText(AndroidUtilities.formatLongDuration((int) progressPSec));
+        if (progress > 0) {
+            int currentProgress = (int) ((progressPSec / audioPlayer.getAudioElement().getTrack().getDuration()) * 100);
+            seekBar.setProgress(currentProgress);
+        } else {
+            seekBar.setProgress(0);
+        }
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        unregister();
+    }
+
+    public void register() {
+        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.messagePlayingProgressDidChanged);
+    }
+
+    private void unregister() {
+        NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, NotificationCenter.messagePlayingProgressDidChanged);
+    }
+
+
+    @Override
+    public void didReceivedNotification(int i, int i1, Object... objects) {
+        if (i == NotificationCenter.messagePlayingProgressDidChanged) {
+            updateProgress((Float) objects[1]);
+        }
+
+    }
 }
 

@@ -2,18 +2,16 @@ package ru.hoprik.player.audio;
 
 import android.graphics.Bitmap;
 import android.media.MediaMetadataRetriever;
-import android.net.Uri;
 import android.util.Log;
 import okhttp3.OkHttpClient;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
-import org.telegram.messenger.audioinfo.AudioInfo;
 import org.telegram.tgnet.TLRPC;
 import ru.hoprik.player.api.ApiClient;
-import ru.hoprik.player.api.interfaces.ICallback;
+import ru.hoprik.player.api.helpers.ICallback;
 import ru.hoprik.player.api.objects.FindMusicInfo;
-import ru.hoprik.player.api.providers.StatsFM;
+import ru.hoprik.player.api.providers.musicinfo.StatsFM;
 import ru.hoprik.player.audio.objects.Artist;
 import ru.hoprik.player.audio.objects.Cover;
 import ru.hoprik.player.audio.objects.Track;
@@ -22,7 +20,6 @@ import ru.hoprik.player.helpers.ImageHelper;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -192,7 +189,7 @@ public class AudioUtils {
         return new MessageObject(UserConfig.selectedAccount, msg, false, false);
     }
 
-    private static List<Artist> parseArtists(String input) {
+    public static List<Artist> parseArtists(String input) {
         List<Artist> result = new ArrayList<>();
         List<String> parsedArtists = new ArrayList<>();
         Matcher m = Pattern.compile("\"([^\"]+)\"|([^,]+)").matcher(input);

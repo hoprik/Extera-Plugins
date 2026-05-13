@@ -7,7 +7,7 @@ public class Track {
     private String name;
     private List<Artist> artists;
     private int duration;
-    private int progress;
+    private float progress;
     private Cover cover;
     private Release release;
     private boolean isWeb;
@@ -57,11 +57,11 @@ public class Track {
         this.duration = duration;
     }
 
-    public int getProgress() {
+    public float getProgress() {
         return progress;
     }
 
-    public void setProgress(int progress) {
+    public void setProgress(float progress) {
         this.progress = progress;
     }
 

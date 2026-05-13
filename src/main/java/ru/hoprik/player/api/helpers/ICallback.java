@@ -1,4 +1,4 @@
-package ru.hoprik.player.api.interfaces;
+package ru.hoprik.player.api.helpers;
 
 public interface ICallback<T> {
     void onSuccess(T item);

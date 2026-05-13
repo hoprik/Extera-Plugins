@@ -1,4 +1,4 @@
-package ru.hoprik.player.api.providers;
+package ru.hoprik.player.api.providers.musicinfo;
 
 import android.util.Log;
 import com.google.gson.Gson;
@@ -6,12 +6,12 @@ import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.OkHttpClient;
 import okhttp3.Response;
-import ru.hoprik.player.api.interfaces.ICallback;
-import ru.hoprik.player.api.interfaces.Provider;
-import ru.hoprik.player.api.interfaces.info.IArtistInfo;
-import ru.hoprik.player.api.interfaces.info.IFindMusicInfo;
-import ru.hoprik.player.api.interfaces.info.IReleaseInfo;
-import ru.hoprik.player.api.interfaces.info.ITrackInfo;
+import ru.hoprik.player.api.helpers.ICallback;
+import ru.hoprik.player.api.helpers.Provider;
+import ru.hoprik.player.api.helpers.info.IArtistInfo;
+import ru.hoprik.player.api.helpers.info.IFindMusicInfo;
+import ru.hoprik.player.api.helpers.info.IReleaseInfo;
+import ru.hoprik.player.api.helpers.info.ITrackInfo;
 import ru.hoprik.player.api.objects.FindMusicInfo;
 import ru.hoprik.player.audio.objects.Artist;
 import ru.hoprik.player.audio.objects.Cover;
@@ -40,9 +40,6 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
         return "https://api.stats.fm/";
     }
 
-    // --------------------------------------------------------------
-    // 1. Получение информации о треке -> Track
-    // --------------------------------------------------------------
     @Override
     public void getTrackInfo(int id, ICallback<Track> callback) {
         makeReq(API_TRACKS + id, "GET", null, new Callback() {
@@ -70,9 +67,6 @@ public class StatsFM extends Provider implements ITrackInfo, IReleaseInfo, IArti
         });
     }
 
-    // --------------------------------------------------------------
-    // 2. Получение информации об артисте -> Artist
-    // --------------------------------------------------------------
     @Override
     public void getArtistInfo(int id, ICallback<Artist> callback) {
         ArtistInfoHolder holder = new ArtistInfoHolder();

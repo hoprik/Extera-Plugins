@@ -52,12 +52,13 @@ public class MusicPlayer {
             register = null;
         }
         if (audioPlayer != null) {
+            audioPlayer.destroy();
             audioPlayer = null;
         }
     }
 
     public void startPlayerUI(BaseFragment baseFragment) {
-        test();
+        audioPlayer.updatePlayingMessage();
         baseFragment.presentFragment(new MusicPlayerUI());
     }
 

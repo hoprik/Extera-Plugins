@@ -1,9 +1,8 @@
-package ru.hoprik.player.api.interfaces;
+package ru.hoprik.player.api.helpers;
 
 import okhttp3.*;
 
 import java.net.URI;
-import java.net.URL;
 
 public abstract class Provider {
     private final OkHttpClient client;
