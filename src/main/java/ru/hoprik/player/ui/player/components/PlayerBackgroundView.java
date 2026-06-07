@@ -1,21 +1,31 @@
 package ru.hoprik.player.ui.player.components;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.text.TextUtils;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
-import org.telegram.messenger.ImageReceiver;
+import org.telegram.messenger.*;
 import org.telegram.ui.Components.BackupImageView;
 import org.telegram.ui.Components.MotionBackgroundDrawable;
 
+import ru.hoprik.player.MusicPlayer;
+import ru.hoprik.player.audio.AudioPlayer;
+import ru.hoprik.player.audio.holder.AudioElement;
+import ru.hoprik.player.audio.objects.Cover;
+import ru.hoprik.player.audio.objects.Track;
 import ru.hoprik.player.helpers.ImageHelper;
 
-public class PlayerBackgroundView extends FrameLayout {
+import java.io.File;
 
-    private BackupImageView backgroundImage;
+public class PlayerBackgroundView extends FrameLayout{
+
+    private CoverLayout backgroundImage;
     private MotionBackgroundDrawable motionBackgroundDrawable;
 
     public PlayerBackgroundView(Context context) {
@@ -25,7 +35,7 @@ public class PlayerBackgroundView extends FrameLayout {
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
 
-        this.backgroundImage = new BackupImageView(context);
+        this.backgroundImage = new CoverLayout(context);
         this.backgroundImage.setAspectFit(false);
         this.backgroundImage.setLayoutParams(new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -54,7 +64,7 @@ public class PlayerBackgroundView extends FrameLayout {
                     motionBackgroundDrawable.setColors(dominant, darkened, dominant, darkened);
                     return;
                 }
-                motionBackgroundDrawable.setColors(Color.parseColor("#525252"), Color.rgb(0,0,0), Color.parseColor("#525252"), Color.rgb(0,0,0));
+                motionBackgroundDrawable.setColors(Color.parseColor("#525252"), Color.rgb(0, 0, 0), Color.parseColor("#525252"), Color.rgb(0, 0, 0));
             }
 
             @Override
@@ -69,16 +79,8 @@ public class PlayerBackgroundView extends FrameLayout {
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
 
-        addView(this.backgroundImage);
+        addView(backgroundImage);
         addView(overlayFrame);
-    }
-
-    public BackupImageView getBackgroundImage() {
-        return backgroundImage;
-    }
-
-    public MotionBackgroundDrawable getMotionBackgroundDrawable() {
-        return motionBackgroundDrawable;
     }
 }
 

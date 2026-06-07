@@ -6,6 +6,7 @@ import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.text.TextUtils;
+import android.util.Log;
 import org.telegram.messenger.*;
 import org.telegram.messenger.audioinfo.AudioInfo;
 import org.telegram.tgnet.TLRPC;
@@ -39,7 +40,8 @@ public class ImageHelper {
         try {
             TLRPC.Document document = object.getDocument();
             if (document != null && document.thumbs != null && !document.thumbs.isEmpty()) {
-                TLRPC.PhotoSize thumb = document.thumbs.get(document.thumbs.size() - 1);
+                Log.d("ImageHelper", "getArtworkThubImageLocation: " + document);
+                TLRPC.PhotoSize thumb = document.thumbs.get(0);
 
                 return ImageLocation.getForDocument(thumb, document);
             }
