@@ -51,4 +51,8 @@ public class Cover {
     public Bitmap getBitmap() {
         return bitmap;
     }
+
+    public ImageLocation getLocation() {
+        return location;
+    }
 }

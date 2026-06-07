@@ -8,11 +8,24 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
+import android.view.ViewGroup;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import org.telegram.messenger.*;
+import org.telegram.messenger.audioinfo.AudioInfo;
 import org.telegram.tgnet.TLRPC;
+import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.BackupImageView;
+import ru.hoprik.player.MusicPlayer;
+import ru.hoprik.player.audio.AudioPlayer;
+import ru.hoprik.player.audio.holder.AudioElement;
+import ru.hoprik.player.audio.objects.Artist;
+import ru.hoprik.player.audio.objects.Cover;
+import ru.hoprik.player.audio.objects.Track;
 
-public class CoverLayout extends BackupImageView {
+import java.io.File;
+
+public class CoverLayout extends BackupImageView implements NotificationCenter.NotificationCenterDelegate {
     MessageObject messageObject;
     private GestureDetector gestureDetector;
     private Runnable onNext;
@@ -26,6 +39,7 @@ public class CoverLayout extends BackupImageView {
 
     public CoverLayout(Context context) {
         super(context);
+        register();
         setClickable(true);
         setupGestures();
         this.isMiniCover = false;
@@ -33,9 +47,16 @@ public class CoverLayout extends BackupImageView {
 
     public CoverLayout(Context context, boolean isMiniCover) {
         super(context);
+        register();
         this.isMiniCover = isMiniCover;
         setClickable(true);
         setupGestures();
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        unregister();
     }
 
     private void setupGestures() {
@@ -94,15 +115,11 @@ public class CoverLayout extends BackupImageView {
                 getParent().requestDisallowInterceptTouchEvent(true);
             }
         }
-        
+
         if (gestureDetector != null && gestureDetector.onTouchEvent(event)) {
             return true;
         }
         return super.onTouchEvent(event);
-    }
-
-    private void setup(){
-
     }
 
     private ImageLocation getArtworkThubImageLocation(MessageObject object) {
@@ -119,7 +136,7 @@ public class CoverLayout extends BackupImageView {
         return null;
     }
 
-    private boolean isPlaceHolder(MessageObject object){
+    private boolean isPlaceHolder(MessageObject object) {
         if (object == null) return true;
         if (getArtworkThubImageLocation(object) != null) return true;
         if (object.getArtworkUrl(false) != null) {
@@ -128,22 +145,26 @@ public class CoverLayout extends BackupImageView {
         return false;
     }
 
+    private void showPlaceholder() {
+        Bitmap albumArtPlaceholder = Bitmap.createBitmap(AndroidUtilities.dp(102), AndroidUtilities.dp(102), Bitmap.Config.ARGB_8888);
+        Drawable placeholder = getContext().getDrawable(R.drawable.nocover);
+        placeholder.setBounds(0, 0, albumArtPlaceholder.getWidth(), albumArtPlaceholder.getHeight());
+        placeholder.draw(new Canvas(albumArtPlaceholder));
+        setImage(null, null, albumArtPlaceholder, this);
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
-        if (imageReceiver.getThumbKey() == null && imageReceiver.getImageKey() != null ){
+        if (imageReceiver.getThumbKey() == null && imageReceiver.getImageKey() != null) {
             Drawable drawable = ImageLoader.getInstance().getFromMemCache(imageReceiver.getImageKey());
-            if (drawable == null){
-                Bitmap albumArtPlaceholder = Bitmap.createBitmap(AndroidUtilities.dp(102), AndroidUtilities.dp(102), Bitmap.Config.ARGB_8888);
-                Drawable placeholder = getContext().getDrawable(R.drawable.nocover);
-                placeholder.setBounds(0, 0, albumArtPlaceholder.getWidth(), albumArtPlaceholder.getHeight());
-                placeholder.draw(new Canvas(albumArtPlaceholder));
-                setImage(null, null, albumArtPlaceholder, this);
+            if (drawable == null) {
+                showPlaceholder();
             }
         }
-        if (imageReceiver.getImageKey() != null){
+        if (imageReceiver.getImageKey() != null) {
             Log.d("KEY", imageReceiver.getImageKey());
         }
-        if (imageReceiver.getThumbKey() != null){
+        if (imageReceiver.getThumbKey() != null) {
             Log.d("KEYF", imageReceiver.getThumbKey());
         }
         Log.d("SIZE", imageReceiver.getSize() + "");
@@ -151,7 +172,120 @@ public class CoverLayout extends BackupImageView {
         super.onDraw(canvas);
     }
 
-    public void update(MessageObject object){
+    public void update(MessageObject object) {
         this.messageObject = object;
+    }
+
+    public void register() {
+        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.messagePlayingDidReset);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.messagePlayingDidStart);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.fileLoaded);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.fileLoadProgressChanged);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.musicDidLoad);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.moreMusicDidLoad);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.musicIdsLoaded);
+        if (!isMiniCover){
+            update();
+        }
+    }
+
+    private void unregister() {
+        NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, NotificationCenter.messagePlayingDidReset);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, NotificationCenter.messagePlayingDidStart);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, NotificationCenter.fileLoaded);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, NotificationCenter.fileLoadProgressChanged);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, NotificationCenter.musicDidLoad);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, NotificationCenter.moreMusicDidLoad);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, NotificationCenter.musicIdsLoaded);
+    }
+
+    public void setupCover(Cover cover) {
+        if (cover.getLocation() == null && cover.getUrl() == null && cover.getBitmap() == null && cover.getFile() == null){
+            showPlaceholder();
+            return;
+        }
+
+        if (cover.getBitmap() != null) {
+            setImageBitmap(cover.getBitmap());
+            return;
+        }
+
+        if (cover.getFile() != null) {
+            File coverFile = cover.getFile();
+            String path = coverFile.getAbsolutePath();
+
+            // Create ImageLocation from local file path
+            ImageLocation imageLocation = ImageLocation.getForPath(path);
+
+            // Set image with proper parameters
+            setImage(imageLocation, null, null, null, path, 512, 1, this);
+            return;
+        }
+
+        if (cover.getUrl() != null && cover.getLocation() == null){
+            setImage(ImageLocation.getForPath(cover.getUrl()),
+                    null,
+                    null,
+                    null,
+                    null,
+                    0,
+                    1, this);
+            return;
+        }
+
+        if (cover.getLocation() == null){
+            showPlaceholder();
+            return;
+        }
+
+        String artworkUrl = cover.getUrl();
+        ImageLocation location = cover.getLocation();
+
+        if (!TextUtils.isEmpty(artworkUrl)) {
+            setImage(
+                    ImageLocation.getForPath(artworkUrl),
+                    null,
+                    location,
+                    null,
+                    null,
+                    0,
+                    1, this);
+        } else if (location != null) {
+            setImage(
+                    null,
+                    null,
+                    location,
+                    null,
+                    null,
+                    0,
+                    1,
+                    this
+            );
+        }
+    }
+
+    private void update() {
+        AudioPlayer player = MusicPlayer.getInstance().getAudioPlayer();
+        if (player == null) return;
+        AudioElement audioElement = player.getAudioElement();
+        if (audioElement == null) return;
+        Track track = audioElement.getTrack();
+
+        if (track == null || track.getCover() == null) {
+            return;
+        }
+
+        Cover cover = track.getCover();
+        setupCover(cover);
+    }
+
+    @Override
+    public void didReceivedNotification(int i, int i1, Object... objects) {
+        Log.d("NOTIFICATION", i + "");
+        if (!isMiniCover) {
+            update();
+        }
     }
 }
