@@ -123,10 +123,10 @@ public class PlaylistContainerView extends LinearLayout {
                 ViewGroup.LayoutParams.WRAP_CONTENT
         ));
 
-        BackupImageView cover = new CoverLayout(context, true);
+        CoverLayout cover = new CoverLayout(context, true);
         cover.setLayoutParams(new LinearLayout.LayoutParams(AndroidUtilities.dp(48), AndroidUtilities.dp(48)));
-        ((CoverLayout) cover).setRoundRadius(AndroidUtilities.dp(12));
-        ((CoverLayout) cover).setAspectFit(true);
+        cover.setRoundRadius(AndroidUtilities.dp(12));
+        cover.setAspectFit(true);
         itemView.addView(cover);
 
         LinearLayout textContainer = new LinearLayout(context);

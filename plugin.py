@@ -35,11 +35,11 @@ import sys
 
 # ============ Meta ============
 __id__ = "fullscreen_music_player"
-__name__ = "Music Player"
-__description__ = "Full screen music player. Если вы обновляете плагин, перезапустите Telegram."
-__author__ = "@hoprik"
-__version__ = "1.2.1"
-__icon__ = "rottenprince_by_FStikBot/0"
+__name__ = "DotFI"
+__description__ = "Музыкальная площадка в telegram. Если вы обновляете плагин, перезапустите Telegram."
+__author__ = "@feature_plugins"
+__version__ = "2.0"
+__icon__ = "feature_plugins/6"
 __min_version__ = "11.12.0"
 
 # ============ Global Vars ============
@@ -320,7 +320,8 @@ class PlayerPlugin(BasePlugin):
                 icon="msg_arrow_forward",
                 create_sub_fragment=self.sub_settings_extensions,
                 link_alias="sub_settings_enter",
-            )
+            ),
+            Header(dex_hash)
         ]
 
     def sub_settings_element(self):
