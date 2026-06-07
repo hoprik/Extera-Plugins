@@ -4,5 +4,5 @@ import ru.hoprik.player.api.helpers.ICallback;
 import ru.hoprik.player.audio.objects.Artist;
 
 public interface IArtistInfo {
-    void getArtistInfo(int id, ICallback<Artist> callback);
+    void getArtistInfo(String id, ICallback<Artist> callback);
 }
