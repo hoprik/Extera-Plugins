@@ -15,11 +15,10 @@ import java.util.stream.Collectors;
 
 public class AudioPlayer implements NotificationCenter.NotificationCenterDelegate {
     private AudioElement playingElement;
-    private boolean playing;
+    private List<AudioElement> playlist;
     private float progress;
 
     public AudioPlayer() {
-        this.playing = false;
         load();
     }
 
@@ -42,88 +41,15 @@ public class AudioPlayer implements NotificationCenter.NotificationCenterDelegat
 
     public void playPlaylist(List<AudioElement> element) {
         if (element.isEmpty()) return;
+        this.playlist = element;
         ArrayList<MessageObject> messages = element.stream().map(AudioElement::getAudio).collect(Collectors.toCollection(ArrayList::new));
         MediaController.getInstance().setPlaylist(messages, messages.get(0), -1);
     }
 
-    public static void setupPlaylist(MediaController controller,
-                                     ArrayList<MessageObject> messageObjects,
-                                     MessageObject current,
-                                     long mergeDialogId,
-                                     boolean loadMusic,
-                                     Object params) { // params – PlaylistGlobalSearchParams (или null)
-        try {
-            // 1. Получаем приватные поля
-            ArrayList<MessageObject> playlist = (ArrayList<MessageObject>) HookUtils.getPrivateField(controller, "playlist");
-            java.util.Map<Integer, MessageObject> playlistMap = (java.util.Map<Integer, MessageObject>) HookUtils.getPrivateField(controller, "playlistMap");
-            if (playlist == null) return;
-
-            // 2. Сохраняем старые флаги и очищаем
-            boolean oldPlayMusicAgain = (boolean) HookUtils.getPrivateField(controller, "playMusicAgain");
-            HookUtils.setPrivateField(controller, "playMusicAgain", !playlist.isEmpty());
-            HookUtils.invokePrivateMethod(controller, "clearPlaylist", new Class[]{});
-
-            // 3. Устанавливаем параметры плейлиста
-            HookUtils.setPrivateField(controller, "forceLoopCurrentPlaylist", !loadMusic);
-            HookUtils.setPrivateField(controller, "playlistMergeDialogId", mergeDialogId);
-            HookUtils.setPrivateField(controller, "playlistGlobalSearchParams", params);
-
-            boolean isSecretChat = !messageObjects.isEmpty() && DialogObject.isEncryptedDialog(messageObjects.get(0).getDialogId());
-            int minId = Integer.MAX_VALUE, maxId = Integer.MIN_VALUE;
-
-            // 4. Добавляем только музыкальные сообщения, НО без дублирования по ID
-            java.util.HashSet<Integer> addedIds = new java.util.HashSet<>();
-            for (MessageObject mo : messageObjects) {
-                if (mo.isMusic()) {
-                    int id = mo.getId();
-                    if (!addedIds.contains(id) && (id > 0 || isSecretChat)) {
-                        addedIds.add(id);
-                        playlist.add(mo);
-                        if (playlistMap != null) playlistMap.put(id, mo);
-                        if (id < minId) minId = id;
-                        if (id > maxId) maxId = id;
-                    }
-                }
-            }
-
-            // 5. Сортируем плейлист (по оригинальному методу sortPlaylist)
-            HookUtils.invokePrivateMethod(controller, "sortPlaylist", new Class[]{});
-
-            // 6. Определяем позицию текущего трека
-            int currentPlaylistNum = playlist.indexOf(current);
-            if (currentPlaylistNum == -1) {
-                // Если current не найден – добавляем его один раз
-                playlist.add(current);
-                if (playlistMap != null) playlistMap.put(current.getId(), current);
-                currentPlaylistNum = playlist.size() - 1;
-            }
-            HookUtils.setPrivateField(controller, "currentPlaylistNum", currentPlaylistNum);
-
-            // 7. Если это музыка и не отложенное сообщение
-            if (current.isMusic() && !current.scheduled) {
-                if (SharedConfig.shuffleMusic) {
-                    HookUtils.invokePrivateMethod(controller, "buildShuffledPlayList", new Class[]{});
-                }
-                if (params == null) {
-                    MediaDataController.getInstance(current.currentAccount)
-                            .loadMusic(current.getDialogId(), minId, maxId);
-                } else {
-                    HookUtils.setPrivateField(controller, "playlistClassGuid", ConnectionsManager.generateClassGuid());
-                }
-            }
-
-            // 8. Запускаем воспроизведение (оригинальный метод publish)
-            controller.playMessage(current, false);
-
-        } catch (Exception e) {
-            Log.e("HookUtils", "setupPlaylist error", e);
-        }
-    }
 
     public void stop() {
         MediaController.getInstance().stopMediaObserver();
     }
-
     public void pause() {
         MediaController.getInstance().pauseMessage(playingElement.getAudio());
     }
@@ -145,28 +71,8 @@ public class AudioPlayer implements NotificationCenter.NotificationCenterDelegat
         return progress;
     }
 
-    public void updateTrack() {
-
-    }
-
-    public void setTrack(Track track) {
-
-    }
-
-    public void playlist() {
-
-    }
-
     public AudioElement getAudioElement() {
         return playingElement;
-    }
-
-    public void setPlaying(boolean playing) {
-        this.playing = playing;
-    }
-
-    public boolean isPlaying() {
-        return playing;
     }
 
     private void load() {
@@ -210,8 +116,6 @@ public class AudioPlayer implements NotificationCenter.NotificationCenterDelegat
         if (playingElement.getTrack().isWeb() || playingElement.getTrack().isLocal()) {
             return;
         }
-
-
     }
 
     private void updateProgress(float progress) {
@@ -231,7 +135,18 @@ public class AudioPlayer implements NotificationCenter.NotificationCenterDelegat
             updatePlayingMessage();
         }
         if (i == NotificationCenter.messagePlayingProgressDidChanged) {
-            updateProgress((Float) objects[1] / 1000);
+            Object progressObj = objects[1];
+            float normalizedProgress = 0f;
+            if (progressObj instanceof Float) {
+                normalizedProgress = (Float) progressObj;
+            } else if (progressObj instanceof Integer) {
+                normalizedProgress = ((Integer) progressObj).floatValue();
+            } else if (progressObj instanceof Long) {
+                normalizedProgress = ((Long) progressObj).floatValue();
+            } else {
+                android.util.Log.e("AudioPlayer", "Unexpected progress type: " + progressObj.getClass().getName());
+            }
+            updateProgress(normalizedProgress);
         }
     }
 }

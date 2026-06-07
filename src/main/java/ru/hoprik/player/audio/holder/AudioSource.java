@@ -6,7 +6,7 @@ import java.io.File;
 import java.net.URL;
 
 public class AudioSource {
-    public enum Type { MESSAGE, URL, FILE }
+    public enum Type { MESSAGE, URL, FILE, ID }
     private final Type type;
     private final Object value;
 
@@ -27,6 +27,8 @@ public class AudioSource {
         return new AudioSource(Type.FILE, file);
     }
 
+    public static AudioSource ofID(TrackID id) {return new AudioSource(Type.ID, id);}
+
     public Type getType() { return type; }
 
     public MessageObject getMessage() {
@@ -41,5 +43,9 @@ public class AudioSource {
     public File getFile() {
         if (type != Type.FILE) throw new IllegalStateException();
         return (File) value;
+    }
+    public TrackID getTrackID(){
+        if (type != Type.ID) throw new IllegalStateException();
+        return (TrackID) value;
     }
 }

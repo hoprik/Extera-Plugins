@@ -4,9 +4,9 @@ import android.graphics.Bitmap;
 import android.media.MediaMetadataRetriever;
 import android.util.Log;
 import okhttp3.OkHttpClient;
-import org.telegram.messenger.MessageObject;
-import org.telegram.messenger.SharedConfig;
-import org.telegram.messenger.UserConfig;
+import org.telegram.SQLite.SQLiteCursor;
+import org.telegram.messenger.*;
+import org.telegram.tgnet.NativeByteBuffer;
 import org.telegram.tgnet.TLRPC;
 import ru.hoprik.player.api.ApiClient;
 import ru.hoprik.player.api.helpers.ICallback;
@@ -21,6 +21,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -31,7 +33,7 @@ public class AudioUtils {
             String trackName = messageObject.getMusicTitle();
             String trackAuthor = messageObject.getMusicAuthor();
             double duration = messageObject.getDuration();
-            String artistArtWork = messageObject.getArtworkUrl(true);
+            String artistArtWork = messageObject.getArtworkUrl(false);
             Cover cover = new Cover(ImageHelper.getArtworkThubImageLocation(messageObject), artistArtWork);
             findTrack();
             return new Track("-1", trackName, parseArtists(trackAuthor), (int) duration, 0, cover, null, false, false);
@@ -187,6 +189,35 @@ public class AudioUtils {
         ((TLRPC.TL_messageMediaDocument) msg.media).document = document;
         msg.attachPath = url;
         return new MessageObject(UserConfig.selectedAccount, msg, false, false);
+    }
+
+    public static void getMessageObjectByChatAndId(long chatId, int messageId, Consumer<MessageObject> callback){
+        int currentAccount = UserConfig.selectedAccount;
+
+        MessagesStorage.getInstance(currentAccount).getStorageQueue().postRunnable(() -> {
+            try {
+                // 1. Query the SQLite database directly
+                SQLiteCursor cursor = MessagesStorage.getInstance(currentAccount).getDatabase().queryFinalized(
+                        "SELECT data FROM messages WHERE uid = " + chatId + " AND mid = " + messageId
+                );
+
+                if (cursor.next()) {
+                    // 2. Extract the raw byte buffer
+                    NativeByteBuffer data = cursor.byteBufferValue(0);
+                    if (data != null) {
+                        // 3. Deserialize into a raw MTProto Message
+                        TLRPC.Message message = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
+                        message.readAttachPath(data, currentAccount);
+                        data.reuse();
+                        MessageObject messageObject = new MessageObject(currentAccount, message, false, true);
+                        callback.accept(messageObject);
+                    }
+                }
+                cursor.dispose();
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+        });
     }
 
     public static List<Artist> parseArtists(String input) {
