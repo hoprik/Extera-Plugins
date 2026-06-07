@@ -8,10 +8,6 @@ import org.telegram.SQLite.SQLiteCursor;
 import org.telegram.messenger.*;
 import org.telegram.tgnet.NativeByteBuffer;
 import org.telegram.tgnet.TLRPC;
-import ru.hoprik.player.api.ApiClient;
-import ru.hoprik.player.api.helpers.ICallback;
-import ru.hoprik.player.api.objects.FindMusicInfo;
-import ru.hoprik.player.api.providers.musicinfo.StatsFM;
 import ru.hoprik.player.audio.objects.Artist;
 import ru.hoprik.player.audio.objects.Cover;
 import ru.hoprik.player.audio.objects.Track;
@@ -22,7 +18,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -104,21 +99,6 @@ public class AudioUtils {
             );
         }
         return null;
-    }
-    public static void findTrack(){
-        OkHttpClient client = ApiClient.getInstance().getProxiedClient();
-        new StatsFM(client).findMusicInfo("hoprik", new ICallback<>() {
-            @Override
-            public void onSuccess(FindMusicInfo item) {
-
-                Log.e("MusicPlayer", "onSuccess: " + item.getArtists().get(0).getId());
-            }
-
-            @Override
-            public void onError(Throwable throwable) {
-                Log.e("MusicPlayer", "onError: ", throwable);
-            }
-        });
     }
 
     public static MessageObject getMessageObjectByFile(File localFile) {
