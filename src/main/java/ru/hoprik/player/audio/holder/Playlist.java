@@ -2,6 +2,7 @@ package ru.hoprik.player.audio.holder;
 
 import com.google.gson.Gson;
 
+import org.telegram.messenger.MediaController;
 import ru.hoprik.player.audio.AudioUtils;
 import ru.hoprik.player.audio.objects.*;
 import org.telegram.messenger.MessageObject;
@@ -14,8 +15,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class Playlist {
-    private String playlistName;
-    private List<AudioElement> elements;
 
     // ---------- DTO для сериализации ----------
     private static class PlaylistStorage {
@@ -81,6 +80,9 @@ public class Playlist {
             return new Track(id, name, artists, duration, (int) progress, cover, release, isWeb, local);
         }
     }
+    
+    private String playlistName;
+    private List<AudioElement> elements;
 
     // ---------- Конструкторы и методы ----------
     public Playlist(String playlistName) {
@@ -105,6 +107,10 @@ public class Playlist {
         return elements;
     }
 
+    public List<MessageObject> getMessageObjects() {
+        return elements.stream().map(AudioElement::getAudio).collect(Collectors.toCollection(ArrayList::new));
+    }
+
     public void setElements(List<AudioElement> elements) {
         this.elements = elements;
     }
@@ -113,7 +119,21 @@ public class Playlist {
         elements.add(element);
     }
 
+    public void play() {
+        ArrayList<MessageObject> messages = (ArrayList<MessageObject>) getMessageObjects();
+        MediaController.getInstance().setPlaylist(messages, messages.get(0), -1);
+    }
+
     // ---------- Сериализация ----------
+    public static Playlist convertToPlaylist(List<MessageObject> objects) {
+        Playlist playlist = new Playlist("");
+        objects.forEach(messageObject -> {
+            if (messageObject.isMusic()) {
+                playlist.addElement(new AudioElement(AudioSource.ofMessage(messageObject), AudioUtils.getTrackByMessageObject(messageObject)));
+            }
+        });
+        return playlist;
+    }
     public static String toJson(Playlist playlist) {
         PlaylistStorage storage = new PlaylistStorage();
         storage.playlistName = playlist.playlistName;

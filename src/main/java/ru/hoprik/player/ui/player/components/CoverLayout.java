@@ -122,23 +122,25 @@ public class CoverLayout extends BackupImageView implements NotificationCenter.N
         return super.onTouchEvent(event);
     }
 
-    private ImageLocation getArtworkThubImageLocation(MessageObject object) {
-        try {
-            TLRPC.Document document = object.getDocument();
-            if (document != null && document.thumbs != null && !document.thumbs.isEmpty()) {
-                TLRPC.PhotoSize thumb = document.thumbs.get(document.thumbs.size() - 1);
-
-                return ImageLocation.getForDocument(thumb, document);
-            }
-        } catch (Exception e) {
-
+    public static ImageLocation getArtworkThumbImageLocation(MessageObject messageObject) {
+        final TLRPC.Document document = messageObject.getDocument();
+        TLRPC.PhotoSize thumb = document != null ? FileLoader.getClosestPhotoSizeWithSize(document.thumbs, 360) : null;
+        if (!(thumb instanceof TLRPC.TL_photoSize) && !(thumb instanceof TLRPC.TL_photoSizeProgressive)) {
+            thumb = null;
+        }
+        if (thumb != null) {
+            return ImageLocation.getForDocument(thumb, document);
+        }
+        final String smallArtworkUrl = messageObject.getArtworkUrl(true);
+        if (smallArtworkUrl != null) {
+            return ImageLocation.getForPath(smallArtworkUrl);
         }
         return null;
     }
 
     private boolean isPlaceHolder(MessageObject object) {
         if (object == null) return true;
-        if (getArtworkThubImageLocation(object) != null) return true;
+        if (getArtworkThumbImageLocation(object) != null) return true;
         if (object.getArtworkUrl(false) != null) {
             return TextUtils.isEmpty(object.getArtworkUrl(false));
         }
@@ -155,6 +157,7 @@ public class CoverLayout extends BackupImageView implements NotificationCenter.N
 
     @Override
     protected void onDraw(Canvas canvas) {
+        super.onDraw(canvas);
         if (imageReceiver.getThumbKey() == null && imageReceiver.getImageKey() != null) {
             Drawable drawable = ImageLoader.getInstance().getFromMemCache(imageReceiver.getImageKey());
             if (drawable == null) {
@@ -169,7 +172,7 @@ public class CoverLayout extends BackupImageView implements NotificationCenter.N
         }
         Log.d("SIZE", imageReceiver.getSize() + "");
 
-        super.onDraw(canvas);
+
     }
 
     public void update(MessageObject object) {
@@ -185,7 +188,7 @@ public class CoverLayout extends BackupImageView implements NotificationCenter.N
         NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.musicDidLoad);
         NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.moreMusicDidLoad);
         NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.musicIdsLoaded);
-        if (!isMiniCover){
+        if (!isMiniCover) {
             update();
         }
     }
@@ -202,12 +205,21 @@ public class CoverLayout extends BackupImageView implements NotificationCenter.N
     }
 
     public void setupCover(Cover cover) {
-        if (cover.getLocation() == null && cover.getUrl() == null && cover.getBitmap() == null && cover.getFile() == null){
+        Log.d("CoverSetup", "=== setupCover called ===");
+        Log.d("CoverSetup", "Initial Cover state: " + cover.toString());
+
+        if (cover.getLocation() == null && cover.getUrl() == null && cover.getBitmap() == null && cover.getFile() == null) {
+            Log.w("CoverSetup", "Branch: ALL NULL. Showing placeholder.");
             showPlaceholder();
             return;
         }
 
         if (cover.getBitmap() != null) {
+            Log.d("CoverSetup", "Branch: BITMAP. Loading from Bitmap object.");
+            if (imageReceiver != null) {
+                Log.d("CoverSetup", "Clearing previous image in imageReceiver.");
+                imageReceiver.clearImage();
+            }
             setImageBitmap(cover.getBitmap());
             return;
         }
@@ -215,54 +227,25 @@ public class CoverLayout extends BackupImageView implements NotificationCenter.N
         if (cover.getFile() != null) {
             File coverFile = cover.getFile();
             String path = coverFile.getAbsolutePath();
+            Log.d("CoverSetup", "Branch: FILE. Loading from local path: " + path);
 
-            // Create ImageLocation from local file path
             ImageLocation imageLocation = ImageLocation.getForPath(path);
-
-            // Set image with proper parameters
             setImage(imageLocation, null, null, null, path, 512, 1, this);
             return;
         }
 
-        if (cover.getUrl() != null && cover.getLocation() == null){
-            setImage(ImageLocation.getForPath(cover.getUrl()),
-                    null,
-                    null,
-                    null,
-                    null,
-                    0,
-                    1, this);
+        if (cover.getUrl() != null && cover.getLocation() == null) {
+            Log.d("CoverSetup", "Branch: URL ONLY. Loading from URL: " + cover.getUrl());
+            setImage(ImageLocation.getForPath(cover.getUrl()), null, null, null, null, 0, 1, this);
             return;
         }
 
-        if (cover.getLocation() == null){
+        if (cover.getLocation() != null) {
+            Log.d("CoverSetup", "Branch: LOCATION. Loading from ImageLocation object.");
+            setImage(cover.getLocation(), null, null, null, null, 0, 1, this);
+        } else {
+            Log.w("CoverSetup", "Branch: FALLBACK ELSE. Fell through to the end. Showing placeholder.");
             showPlaceholder();
-            return;
-        }
-
-        String artworkUrl = cover.getUrl();
-        ImageLocation location = cover.getLocation();
-
-        if (!TextUtils.isEmpty(artworkUrl)) {
-            setImage(
-                    ImageLocation.getForPath(artworkUrl),
-                    null,
-                    location,
-                    null,
-                    null,
-                    0,
-                    1, this);
-        } else if (location != null) {
-            setImage(
-                    null,
-                    null,
-                    location,
-                    null,
-                    null,
-                    0,
-                    1,
-                    this
-            );
         }
     }
 
@@ -274,6 +257,7 @@ public class CoverLayout extends BackupImageView implements NotificationCenter.N
         Track track = audioElement.getTrack();
 
         if (track == null || track.getCover() == null) {
+            showPlaceholder();
             return;
         }
 
@@ -284,7 +268,11 @@ public class CoverLayout extends BackupImageView implements NotificationCenter.N
     @Override
     public void didReceivedNotification(int i, int i1, Object... objects) {
         Log.d("NOTIFICATION", i + "");
-        if (!isMiniCover) {
+        if (!isMiniCover || (NotificationCenter.fileLoaded == i ||
+                NotificationCenter.fileLoadProgressChanged == i ||
+                NotificationCenter.musicDidLoad == i ||
+                NotificationCenter.moreMusicDidLoad == i ||
+                NotificationCenter.musicIdsLoaded == i)) {
             update();
         }
     }

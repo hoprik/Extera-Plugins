@@ -41,13 +41,25 @@ public class GlobalProvider{
         if (provider instanceof IReleaseInfo) addFeature(IReleaseInfo.class, provider, priority);
     }
 
+    public void unregisterProvider(Object provider) {
+        for (List<ProviderEntry> list : registry.values()) {
+            // Используем Java 8+ метод для безопасного удаления по условию
+            list.removeIf(entry -> entry.provider.equals(provider));
+        }
+    }
+
+    // 💡 НОВЫЙ МЕТОД: Полная очистка (удобно при логауте пользователя)
+    public void clearAll() {
+        registry.clear();
+    }
+
     private <T> void addFeature(Class<T> clazz, Object provider, int priority) {
         List<ProviderEntry> list = registry.computeIfAbsent(clazz, k -> new ArrayList<>());
+        list.removeIf(entry -> entry.provider.equals(provider));
 
-        list.add(new ProviderEntry(provider, priority));
-
-        // 4. Сразу сортируем список после добавления
-        // Благодаря этому getProviders() будет работать максимально быстро
+        if (priority>=0) {
+            list.add(new ProviderEntry(provider, priority));
+        }
         Collections.sort(list);
     }
     @SuppressWarnings("unchecked")

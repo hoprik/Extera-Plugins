@@ -12,6 +12,7 @@ import ru.hoprik.player.audio.objects.Artist;
 import ru.hoprik.player.audio.objects.Cover;
 import ru.hoprik.player.audio.objects.Track;
 import ru.hoprik.player.helpers.ImageHelper;
+import ru.hoprik.player.ui.player.components.CoverLayout;
 
 import java.io.File;
 import java.io.IOException;
@@ -29,8 +30,7 @@ public class AudioUtils {
             String trackAuthor = messageObject.getMusicAuthor();
             double duration = messageObject.getDuration();
             String artistArtWork = messageObject.getArtworkUrl(false);
-            Cover cover = new Cover(ImageHelper.getArtworkThubImageLocation(messageObject), artistArtWork);
-            findTrack();
+            Cover cover = new Cover(CoverLayout.getArtworkThumbImageLocation(messageObject), artistArtWork);
             return new Track("-1", trackName, parseArtists(trackAuthor), (int) duration, 0, cover, null, false, false);
         }
 

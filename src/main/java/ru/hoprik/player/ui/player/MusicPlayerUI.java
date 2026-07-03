@@ -10,15 +10,19 @@ import android.view.ViewGroup;
 import android.widget.*;
 import androidx.core.view.ViewCompat;
 
+import com.exteragram.messenger.plugins.PluginsController;
+import com.exteragram.messenger.plugins.ui.PluginSettingsActivity;
 import com.exteragram.messenger.utils.text.LocaleUtils;
 import org.telegram.messenger.*;
 import org.telegram.messenger.MediaController;
 import org.telegram.ui.ActionBar.ActionBar;
+import org.telegram.ui.ActionBar.ActionBarMenuItem;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.*;
 import ru.hoprik.player.MusicPlayer;
 import ru.hoprik.player.audio.AudioPlayer;
+import ru.hoprik.player.audio.holder.Playlist;
 import ru.hoprik.player.audio.objects.Track;
 import ru.hoprik.player.ui.player.components.*;
 import ru.hoprik.player.helpers.ControlsHelpers;
@@ -29,9 +33,10 @@ import java.util.List;
 public class MusicPlayerUI extends BaseFragment implements NotificationCenter.NotificationCenterDelegate{
     PlayerBackgroundView backgroundView;
     GradientDrawable overlayColor;
-    List<MessageObject> playlist;
     PlaylistContainerView playlistContainerView;
     PrimaryControlsView primaryControlsView;
+
+    private final int SETTINGS_CODE = 1000;
 
     boolean enableShuffle;
     boolean enableDownload;
@@ -95,19 +100,6 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
         fragmentView = new SwipeBackLayout(context, this);
         FrameLayout container = (FrameLayout) fragmentView;
 
-//        ExoPlayer player = new ExoPlayer.Builder(context).build();
-//
-//        DefaultDataSource.Factory dataSourceFactory =
-//                new DefaultDataSource.Factory(context);
-//
-//        MediaSource mediaSource =
-//                new ProgressiveMediaSource.Factory(dataSourceFactory)
-//                        .createMediaSource(MediaItem.fromUri("https://fine.sunproxy.net/file/M2w4cGt3UzBSOXB4OU9TSGFMdlBpVC9zc0dMV2liUGVTZFR5a3htR2dKUWljYklkZkp0MGxuWks1M0VpWHVmbTFOT0JGSUFWSURudkt4alUzb3NpS1QzeG9zYVZsKzhLdW9RTGpQNWQ0d0E9/MAYOT_-_Lagayu_(SkySound.cc).mp3"));
-//
-//        player.setMediaSource(mediaSource);
-//        player.prepare();
-//        player.play();
-
         ScrollView scrollView = new ScrollView(context);
         scrollView.setFillViewport(true);
         scrollView.setOverScrollMode(View.OVER_SCROLL_NEVER);
@@ -119,7 +111,6 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
             }
             return false;
         });
-
 
         FrameLayout.LayoutParams scrollParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -133,8 +124,6 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
             renderError(container, context);
             return fragmentView;
         }
-
-        playlist = MediaController.getInstance().getPlaylist();
 
         LinearLayout main_layout = new LinearLayout(context);
         main_layout.setOrientation(LinearLayout.VERTICAL);
@@ -192,7 +181,31 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
         headerTitle.setTextSize(16);
         headerTitle.setTypeface(AndroidUtilities.bold());
         headerTitle.setGravity(Gravity.CENTER);
-        
+
+        ActionBarMenuItem otherButton = new ActionBarMenuItem(context, null, 0, Theme.getColor(Theme.key_player_actionBarItems));
+        otherButton.setIcon(R.drawable.ic_ab_other);
+        otherButton.setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_player_actionBarSelector), 1));
+        otherButton.setSubMenuOpenSide(2); // Выравниваем выпадающее меню по правому краю
+        otherButton.setLongClickEnabled(true);
+
+        // Добавляем элементы в выпадающее меню (используем стандартные иконки телеги)
+        otherButton.addSubItem(SETTINGS_CODE, R.drawable.msg_settings, MusicPlayer.getInstance().getString("settings_name"));
+
+        // Обработчик кликов по пунктам меню
+        otherButton.setDelegate(id -> {
+            switch (id) {
+                case SETTINGS_CODE:
+                    presentFragment(new PluginSettingsActivity(PluginsController.getInstance().plugins.get(MusicPlayer.PLUGIN_ID)));
+                    break;
+            }
+        });
+
+        LinearLayout.LayoutParams otherParams = new LinearLayout.LayoutParams(
+                AndroidUtilities.dp(44),
+                AndroidUtilities.dp(44)
+        );
+        otherParams.gravity = Gravity.END;
+        otherButton.setLayoutParams(otherParams);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
                 0,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -200,16 +213,9 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
         );
         headerTitle.setLayoutParams(titleParams);
 
-        View rightPlaceholder = new View(context);
-        LinearLayout.LayoutParams rightParams = new LinearLayout.LayoutParams(
-                AndroidUtilities.dp(44),
-                AndroidUtilities.dp(44)
-        );
-        rightPlaceholder.setLayoutParams(rightParams);
-
         headerLayout.addView(backButton);
         headerLayout.addView(headerTitle);
-        headerLayout.addView(rightPlaceholder);
+        headerLayout.addView(otherButton);
 
         main_layout.addView(headerLayout);
 
@@ -271,7 +277,7 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
         ));
         main_layout.addView(space2);
 
-        playlistContainerView = new PlaylistContainerView(context, playlist, message -> {
+        playlistContainerView = new PlaylistContainerView(context, message -> {
             MediaController.getInstance().playMessage(message);
             if (primaryControlsView != null) {
                 primaryControlsView.setPlayPauseState(!MediaController.getInstance().isMessagePaused(), false);
@@ -286,14 +292,14 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
         bottomText.setTextSize(12);
         bottomText.setGravity(Gravity.CENTER);
         bottomText.setAlpha(0.6f);
-        
+
         LinearLayout.LayoutParams bottomTextParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
         );
         bottomTextParams.setMargins(0, AndroidUtilities.dp(20), 0, AndroidUtilities.dp(40));
         bottomText.setLayoutParams(bottomTextParams);
-        
+
         main_layout.addView(bottomText);
 
         View bottomSpacer = new View(context);
@@ -307,7 +313,11 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
         container.addView(scrollView);
 
         scrollView.setOnScrollChangeListener((v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
-            if (playlist.size() >= 5) {
+            Playlist playlist = MusicPlayer.getInstance().getAudioPlayer().getPlaylist();
+            if ((playlist == null || playlist.getElements() == null)){
+                return;
+            }
+            if (playlist.getElements().size() >= 5) {
                 float maxScroll = AndroidUtilities.dp(200);
                 float progress = Math.min(1f, scrollY / maxScroll);
 
@@ -341,12 +351,12 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
                     () -> {
                         MessageObject object = MediaController.getInstance().getPlayingMessageObject();
                         if (object == null || object.getDocument() == null) return;
-                        
+
                         int currentAccount = UserConfig.selectedAccount;
                         MessagesController.SavedMusicIds musicIds = MessagesController.getInstance(currentAccount).getSavedMusicIds();
                         final long documentId = object.getDocument().id;
                         boolean isSaved = musicIds.ids.contains(documentId);
-                        
+
                         ControlsHelpers.saveToProfile(object, !isSaved, () -> {}, false, this);
                         if (!isSaved) {
                             BulletinFactory.of(this)

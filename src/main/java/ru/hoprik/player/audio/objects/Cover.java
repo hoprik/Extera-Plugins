@@ -55,4 +55,14 @@ public class Cover {
     public ImageLocation getLocation() {
         return location;
     }
+
+    @Override
+    public String toString() {
+        return "Cover{" +
+                "file=" + file +
+                ", url='" + url + '\'' +
+                ", bitmap=" + bitmap +
+                ", location=" + location +
+                '}';
+    }
 }

@@ -35,7 +35,7 @@ import sys
 
 # ============ Meta ============
 __id__ = "fullscreen_music_player"
-__name__ = "DotFI"
+__name__ = "DotFi"
 __description__ = "Музыкальная площадка в telegram. Если вы обновляете плагин, перезапустите Telegram."
 __author__ = "@feature_plugins"
 __version__ = "2.0"
@@ -48,10 +48,13 @@ PLAYER_CLASS_NAME = "ru.hoprik.player.MusicPlayer"
 MusicPlayer = None
 dex_data =  # DEX_DATA_HERE #
 
+providers = ["statsfm", "lastfm"]
+
 # ============ Localization ============
 class LocalizationManager:
     strings = {
         "ru": {
+            "description": "Музыкальная площадка в telegram, слушайте онлайн, офлайн музыку",
             "player": "Плеер",
             "no_music": "Включите музыку",
             "now_playing": "Сейчас играет",
@@ -64,6 +67,7 @@ class LocalizationManager:
             "settings_enter": "Настройки запуска",
             "settings_addons": "Дополнения",
             "settings_proxy": "Прокси",
+            "settings_providers": "Провайдеры",
             "settings_enable_feature_shuffle": "Repeat и shuffle трэков",
             "settings_enable_feature_download": "Скачивание трэков",
             "settings_enable_feature_share": "Поделиться трэком",
@@ -77,6 +81,7 @@ class LocalizationManager:
             "settings_enable_addon_lyrics": "Включить поддержку плагина lyrics (Работает только если его поставили)"
         },
         "en": {
+            "description": "Music player in telegram, listen online, offline music",
             "player": "Player",
             "no_music": "Play some music",
             "now_playing": "Now playing",
@@ -89,6 +94,7 @@ class LocalizationManager:
             "settings_enter": "Launch Settings",
             "settings_addons": "Addons",
             "settings_proxy": "Proxy",
+            "settings_providers": "Providers",
             "settings_enable_feature_shuffle": "Repeat and shuffle tracks",
             "settings_enable_feature_download": "Track downloading",
             "settings_enable_feature_share": "Share track",
@@ -316,6 +322,12 @@ class PlayerPlugin(BasePlugin):
                 link_alias="sub_settings_enter",
             ),
             Text(
+                text=localizer.get_string("settings_providers"),
+                icon="msg_arrow_forward",
+                create_sub_fragment=self.sub_settings_providers,
+                link_alias="sub_settings_enter",
+            ),
+            Text(
                 text=localizer.get_string("settings_addons"),
                 icon="msg_arrow_forward",
                 create_sub_fragment=self.sub_settings_extensions,
@@ -381,6 +393,50 @@ class PlayerPlugin(BasePlugin):
 
         return settings
 
+    def sub_settings_providers(self):
+        global providers
+        settings = [
+            Header(localizer.get_string("settings_providers")),
+        ]
+
+        for k, v in enumerate(providers):
+            key = f"provider_settings_prio_{v}"
+            default_value = len(providers) - k  # Теперь это int, а не f-строка
+
+            settings.append(Input(
+                key=key,
+                text=f"{v}",
+                subtext="Приоритет",
+                default=str(default_value), # Для Input оставляем строку
+                icon="msg_settings",
+                on_change=lambda new_value, key=key, default_value=default_value:
+                self._apply_prio(key, new_value, default_value),
+            ))
+
+        return settings
+
+    def _apply_prio(self, key, value, default_value: int):
+        # Пытаемся безопасно достать предыдущее значение и привести его к int
+        try:
+            prev_value = int(self.get_setting(key, default_value))
+        except (ValueError, TypeError):
+            prev_value = default_value
+
+        self._apply_int(key, prev_value, value)
+        if MusicPlayer:
+            MusicPlayer.registerProvides()
+
+    def _apply_int(self, key: str, default_value: int, new_value: str):
+        cooldown = str(new_value).strip()
+        print(f"Key: {key}, Default: {default_value}, New: {cooldown}")
+
+        if cooldown.isdigit():
+            # СОХРАНЯЕМ КАК INT! Это критично для связи с Java
+            self.set_setting(key, int(cooldown))
+        else:
+            # Откатываем интерфейс и настройку обратно к валидному числу
+            self.set_setting(key, default_value, reload_settings=True)
+
     def _open_plugin_lyrics(self, view):
         if MusicPlayer:
             MusicPlayer.openBrowser(get_last_fragment())
@@ -438,30 +494,8 @@ class PlayerPlugin(BasePlugin):
             self.remove_menu_item(self.drawer_menu_item)
             self.drawer_menu_item = None
 
-    def sync_settings_to_java(self):
-        if MusicPlayer is None:
-            return
-        java_settings = HashMap()
-        keys = [
-            "enable_feature_shuffle",
-            "enable_feature_download",
-            "enable_feature_share",
-            "enable_feature_save",
-            "enable_background_dominant"
-            "enable_audioplayer"
-        ]
-        for key in keys:
-            py_val = self.get_setting(key, True)
-            java_settings.put(String(key), Boolean(py_val))
-        try:
-            MusicPlayer.setSettings(java_settings)
-            self.log("Settings synced to Java successfully")
-        except Exception as e:
-            self.log(f"Error syncing settings: {e}")
-
     def setup_player_ui(self):
         self._link_lyrics_now()
-        self.sync_settings_to_java()
         if MusicPlayer:
             MusicPlayer.startPlayerUI(get_last_fragment())
         else:

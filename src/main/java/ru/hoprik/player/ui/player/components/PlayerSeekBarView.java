@@ -198,13 +198,16 @@ public class PlayerSeekBarView extends LinearLayout implements NotificationCente
 
     public void register() {
         NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.messagePlayingProgressDidChanged);
-        // Подписываемся на уведомление о смене трека, чтобы обновить кэш AudioPlayer
-        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.messageAudioTrackChanged);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.messagePlayingDidReset);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.messagePlayingDidStart);
     }
 
     private void unregister() {
         NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, NotificationCenter.messagePlayingProgressDidChanged);
-        NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, NotificationCenter.messageAudioTrackChanged);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, NotificationCenter.messagePlayingDidReset);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
+        NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, NotificationCenter.messagePlayingDidStart);
     }
 
     @Override
@@ -221,11 +224,10 @@ public class PlayerSeekBarView extends LinearLayout implements NotificationCente
             } else if (progressObj instanceof Long) {
                 normalizedProgress = ((Long) progressObj).floatValue();
             } else {
-                Log.e("AudioPlayer", "Unexpected progress type: " + progressObj.getClass().getName());
                 return;
             }
             updateProgress(normalizedProgress);
-        } else if (id == NotificationCenter.messageChan) {
+        } else if (id == NotificationCenter.messagePlayingDidStart || id == NotificationCenter.messagePlayingDidReset || id == NotificationCenter.messagePlayingPlayStateChanged){
             // При смене трека сбрасываем кэш и синхронизируем состояние
             updateCachedAudioPlayer();
             syncState(cachedAudioPlayer);

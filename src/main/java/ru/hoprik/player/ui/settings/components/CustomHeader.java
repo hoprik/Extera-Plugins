@@ -20,6 +20,7 @@ import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.Premium.GLIcon.GLIconRenderer;
 import org.telegram.ui.Components.Premium.GLIcon.GLIconTextureView;
 import org.telegram.ui.Components.Premium.StarParticlesView;
+import ru.hoprik.player.MusicPlayer;
 
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Field;
@@ -101,14 +102,14 @@ public class CustomHeader extends FrameLayout {
         titleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
         titleView.setTypeface(AndroidUtilities.bold());
         titleView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText, resourcesProvider));
-        titleView.setText(LocaleController.getString(R.string.TelegramBusiness));
+        titleView.setText("DotFi");
         titleView.setGravity(Gravity.CENTER);
         addView(titleView, LayoutHelper.createFrame(WRAP_CONTENT, WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 33, 150, 33, 0));
 
         TextView subtitleView = new TextView(context);
         subtitleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
         subtitleView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, resourcesProvider));
-        subtitleView.setText(LocaleController.getString(R.string.TelegramBusinessSubtitle2));
+        subtitleView.setText(MusicPlayer.getInstance().getString("description"));
         subtitleView.setGravity(Gravity.CENTER);
         addView(subtitleView, LayoutHelper.createFrame(WRAP_CONTENT, WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 33, 183, 33, 20));
     }

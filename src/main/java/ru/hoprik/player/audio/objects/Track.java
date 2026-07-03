@@ -96,4 +96,16 @@ public class Track {
     public void setLocal(boolean local) {
         this.local = local;
     }
+
+    @Override
+    public String toString() {
+        return "Track{" +
+                "id='" + id + '\'' +
+                ", name='" + name + '\'' +
+                ", duration=" + duration +
+                ", progress=" + progress +
+                ", isWeb=" + isWeb +
+                ", local=" + local +
+                '}';
+    }
 }

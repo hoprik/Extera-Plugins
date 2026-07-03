@@ -1,10 +1,14 @@
 package ru.hoprik.player;
 
 import android.util.Log;
+import com.exteragram.messenger.plugins.PluginsController;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.ui.ActionBar.BaseFragment;
 import ru.hoprik.player.api.ApiClient;
+import ru.hoprik.player.api.ApiInterface;
+import ru.hoprik.player.api.providers.GlobalProvider;
+import ru.hoprik.player.api.providers.StatsFM;
 import ru.hoprik.player.audio.AudioPlayer;
 import ru.hoprik.player.audio.holder.AudioElement;
 import ru.hoprik.player.audio.holder.AudioSource;
@@ -20,12 +24,13 @@ import java.util.List;
 import java.util.Map;
 
 public class MusicPlayer {
+    public static final String PLUGIN_ID = "fullscreen_music_player";
     private static final MusicPlayer instance = new MusicPlayer();
     private Class<?> lyricsClass;
     private Map<String, Map<String, String>> localizations;
-    private Map<String, Boolean> settings = new HashMap<>();
     private HookRegister register;
     private AudioPlayer audioPlayer;
+    private GlobalProvider provider;
 
     public MusicPlayer() {
         ApiClient.getInstance().setSocksProxy("127.0.0.1", 25565);
@@ -34,11 +39,28 @@ public class MusicPlayer {
     public void load() {
         Log.d("MusicPlayer", "MusicPlayer created");
         audioPlayer = new AudioPlayer();
+        provider = new GlobalProvider();
+        registerProvides();
+
         register = new HookRegister();
         try {
             register.registerHooks();
         } catch (NoSuchMethodException e) {
             Log.e("MusicPlayer", "MusicPlayer HOOK REGISTER ERROR: ", e);
+        }
+    }
+
+    public void registerProvides() {
+        provider.registerProvider(new StatsFM(ApiClient.getInstance().getProxiedClient()), parsePriority("statsfm"));
+    }
+
+    private int parsePriority(String provider) {
+        String priority = getFeatureString("provider_settings_prio_"+provider, "");
+        if (priority == null || priority.isEmpty()) return -1;
+        try {
+            return Integer.parseInt(priority);
+        } catch (NumberFormatException e) {
+            return -1;
         }
     }
 
@@ -51,6 +73,10 @@ public class MusicPlayer {
             register.unregisterHooks();
             register = null;
         }
+        if (provider != null) {
+            provider.clearAll();
+            provider = null;
+        }
         if (audioPlayer != null) {
             audioPlayer.destroy();
             audioPlayer = null;
@@ -62,7 +88,7 @@ public class MusicPlayer {
         baseFragment.presentFragment(new MusicPlayerUI());
     }
 
-    private void test(){
+    private void test() {
         List<Artist> artists = new ArrayList<>();
         artists.add(new Artist("0", "Mayot", null, new ArrayList<>(), new ArrayList<>(), false, true));
         List<AudioElement> audioElements = new ArrayList<>();
@@ -70,7 +96,7 @@ public class MusicPlayer {
                 new Track("0", "Логика", artists, 100, 0, null, null, false, true)));
         audioElements.add(new AudioElement(AudioSource.ofUrl("https://fine.sunproxy.net/file/R1NobVRWZUhVQTBicWY0SnpUYy9Mdnpuc05ZVVlPVjd1VTBFV2x6OVBZRElnRjBJSGwveDg2R0xWNGZIcG9wSWxiRGMvZUV4MDRhdlZocTRpWm1OME1ETHhiSExJZGozUTJLNXBjd1d5MGs9/MAYOT_-_Lagayu_(SkySound.cc).mp3"),
                 new Track("0", "Лагаю", artists, 100, 0, null, null, false, true)));
-        audioPlayer.playPlaylist(audioElements);
+        audioPlayer.playPlaylist("test", audioElements);
     }
 
     public void openBrowser(BaseFragment fragment) {
@@ -113,15 +139,16 @@ public class MusicPlayer {
         this.lyricsClass = lyricsClass;
     }
 
-    public void setSettings(Map<String, Boolean> settings) {
-        this.settings = settings;
+    private PluginsController getPluginsController() {
+        return PluginsController.getInstance();
     }
 
     public boolean isFeatureEnabled(String key, boolean defaultValue) {
-        if (settings == null) return defaultValue;
+        return getPluginsController().getPluginSettingBoolean(PLUGIN_ID, key, defaultValue);
+    }
 
-        Boolean val = settings.get(key);
-        return val != null ? val : defaultValue;
+    public String getFeatureString(String key, String defaultValue) {
+        return getPluginsController().getPluginSettingString(PLUGIN_ID, key, defaultValue);
     }
 
     public Class<?> getLyricsClass() {
@@ -130,5 +157,9 @@ public class MusicPlayer {
 
     public AudioPlayer getAudioPlayer() {
         return audioPlayer;
+    }
+
+    public GlobalProvider getProvider() {
+        return provider;
     }
 }
