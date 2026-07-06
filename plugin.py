@@ -1,6 +1,6 @@
 """
 Автор - @hoprik
-Дизайн - @canickk
+Форк - @nonPlugins
 Идея с dex и хуки - @PESSDES_Plugins
 Сурсы Плеера - https://github.com/hoprik/Extera-Plugins/tree/fullscreen_dex
 """
@@ -37,7 +37,7 @@ import sys
 __id__ = "fullscreen_music_player"
 __name__ = "DotFi"
 __description__ = "Музыкальная площадка в telegram. Если вы обновляете плагин, перезапустите Telegram."
-__author__ = "@feature_plugins"
+__author__ = "@nonPlugins"
 __version__ = "2.0"
 __icon__ = "feature_plugins/6"
 __min_version__ = "11.12.0"

@@ -35,7 +35,7 @@ public class PlayerBackgroundView extends FrameLayout{
                 ViewGroup.LayoutParams.MATCH_PARENT
         ));
 
-        this.backgroundImage = new CoverLayout(context);
+        this.backgroundImage = new CoverLayout(context, false, true);
         this.backgroundImage.setAspectFit(false);
         this.backgroundImage.setLayoutParams(new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -81,6 +81,11 @@ public class PlayerBackgroundView extends FrameLayout{
 
         addView(backgroundImage);
         addView(overlayFrame);
+    }
+
+    public void setupBackgroundCover(Cover cover) {
+        if (cover == null) return;
+        this.backgroundImage.setupCover(cover);
     }
 }
 

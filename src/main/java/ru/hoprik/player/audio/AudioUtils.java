@@ -223,4 +223,42 @@ public class AudioUtils {
                 name.endsWith(".m4a") || name.endsWith(".ogg") || name.endsWith(".aac") ||
                 name.endsWith(".opus") || name.endsWith(".wma");
     }
+
+    public static void loadCover(Track track) {
+        if (track == null) return;
+        Cover cover = track.getCover();
+        if (cover == null) {
+            return;
+        }
+
+        if (cover.getBitmap() != null || (cover.getFile() != null && cover.getFile().exists())) {
+            return;
+        }
+
+        ImageLocation location = null;
+        if (cover.getLocation() != null) {
+            location = cover.getLocation();
+        } else if (cover.getUrl() != null && !cover.getUrl().isEmpty()) {
+            location = ImageLocation.getForPath(cover.getUrl());
+        } else if (cover.getFile() != null) {
+            location = ImageLocation.getForPath(cover.getFile().getAbsolutePath());
+        }
+
+        if (location == null) {
+            return;
+        }
+
+        if (location.path != null) {
+            ImageLoader.getInstance().preloadArtwork(location.path);
+        } else {
+            int currentAccount = UserConfig.selectedAccount;
+            FileLoader.getInstance(currentAccount).loadFile(location, null, null, FileLoader.PRIORITY_LOW, 1);
+        }
+    }
+
+    public static void loadCovers(List<Track> tracks) {
+        for (Track track : tracks) {
+            loadCover(track);
+        }
+    }
 }

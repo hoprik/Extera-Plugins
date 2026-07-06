@@ -18,6 +18,7 @@ import org.telegram.ui.ActionBar.SimpleTextView;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.RLottieImageView;
 import ru.hoprik.player.MusicPlayer;
+import ru.hoprik.player.audio.AudioUtils;
 import ru.hoprik.player.audio.holder.AudioElement;
 import ru.hoprik.player.audio.holder.Playlist;
 import ru.hoprik.player.audio.objects.Artist;
@@ -75,6 +76,17 @@ public class PlaylistContainerView extends FrameLayout implements NotificationCe
 
         adapter = new PlaylistAdapter(MusicPlayer.getInstance().getAudioPlayer().getPlaylist());
         recyclerView.setAdapter(adapter);
+        recyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
+                LinearLayoutManager lm = (LinearLayoutManager) recyclerView.getLayoutManager();
+                int total = recyclerView.getAdapter().getItemCount();
+                int lastVisible = lm.findLastVisibleItemPosition();
+                if (lastVisible >= total - 5) {
+                    MusicPlayer.getInstance().getAudioPlayer().loadMoreMusic();
+                }
+            }
+        });
     }
 
     public void updatePlaylistSelection() {
@@ -97,12 +109,9 @@ public class PlaylistContainerView extends FrameLayout implements NotificationCe
             return;
         }
 
-        for (AudioElement element : currentPlaylist.getElements()) {
-            Log.d("PlaylistContainerView", "Element: " + element.getAudio().getId());
-        }
-
         adapter.update(currentPlaylist);
         updatePlaylistSelection();
+        adapter.playlist.getElements().forEach(element -> AudioUtils.loadCover(element.getTrack()));
     }
 
     @Override
@@ -255,7 +264,7 @@ public class PlaylistContainerView extends FrameLayout implements NotificationCe
                     ViewGroup.LayoutParams.WRAP_CONTENT
             ));
 
-            CoverLayout cover = new CoverLayout(context, true);
+            CoverLayout cover = new CoverLayout(context, true, false);
             cover.setLayoutParams(new LinearLayout.LayoutParams(AndroidUtilities.dp(48), AndroidUtilities.dp(48)));
             cover.setRoundRadius(AndroidUtilities.dp(12));
             cover.setAspectFit(true);

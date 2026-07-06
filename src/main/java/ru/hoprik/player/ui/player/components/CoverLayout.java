@@ -1,8 +1,7 @@
 package ru.hoprik.player.ui.player.components;
 
 import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
+import android.graphics.*;
 import android.graphics.drawable.Drawable;
 import android.text.TextUtils;
 import android.util.Log;
@@ -15,6 +14,7 @@ import org.telegram.messenger.*;
 import org.telegram.messenger.audioinfo.AudioInfo;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.Components.AnimatedFileDrawable;
 import org.telegram.ui.Components.BackupImageView;
 import ru.hoprik.player.MusicPlayer;
 import ru.hoprik.player.audio.AudioPlayer;
@@ -25,12 +25,18 @@ import ru.hoprik.player.audio.objects.Track;
 
 import java.io.File;
 
-public class CoverLayout extends BackupImageView implements NotificationCenter.NotificationCenterDelegate {
-    MessageObject messageObject;
+public class CoverLayout extends BackupImageView {
+    Track messageObject;
     private GestureDetector gestureDetector;
     private Runnable onNext;
     private Runnable onPrevious;
+
     private final boolean isMiniCover;
+
+    private boolean isPlaceholder;
+    private Bitmap placeholder;
+
+
 
     public void setOnSwipeListeners(Runnable onNext, Runnable onPrevious) {
         this.onNext = onNext;
@@ -38,25 +44,23 @@ public class CoverLayout extends BackupImageView implements NotificationCenter.N
     }
 
     public CoverLayout(Context context) {
-        super(context);
-        register();
-        setClickable(true);
-        setupGestures();
-        this.isMiniCover = false;
+        this(context, false, false);
     }
 
-    public CoverLayout(Context context, boolean isMiniCover) {
+    public CoverLayout(Context context, boolean isMiniCover, boolean isBackground) {
         super(context);
-        register();
         this.isMiniCover = isMiniCover;
+        setupPlaceholder();
         setClickable(true);
         setupGestures();
+        if (!isBackground) {
+            super.getImageReceiver().setDelegate(getDelegate());
+        }
     }
 
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        unregister();
     }
 
     private void setupGestures() {
@@ -147,79 +151,62 @@ public class CoverLayout extends BackupImageView implements NotificationCenter.N
         return false;
     }
 
-    private void showPlaceholder() {
+    private void setupPlaceholder() {
         Bitmap albumArtPlaceholder = Bitmap.createBitmap(AndroidUtilities.dp(102), AndroidUtilities.dp(102), Bitmap.Config.ARGB_8888);
         Drawable placeholder = getContext().getDrawable(R.drawable.nocover);
         placeholder.setBounds(0, 0, albumArtPlaceholder.getWidth(), albumArtPlaceholder.getHeight());
         placeholder.draw(new Canvas(albumArtPlaceholder));
-        setImage(null, null, albumArtPlaceholder, this);
+        this.placeholder = albumArtPlaceholder;
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
-        super.onDraw(canvas);
-        if (imageReceiver.getThumbKey() == null && imageReceiver.getImageKey() != null) {
-            Drawable drawable = ImageLoader.getInstance().getFromMemCache(imageReceiver.getImageKey());
-            if (drawable == null) {
-                showPlaceholder();
+        if (isPlaceholder) {
+            int[] radii = getRoundRadius(); // получаем массив [tl, tr, bl, br]
+            Path clipPath = new Path();
+            RectF rect = new RectF(0, 0, getWidth(), getHeight());
+            float[] radiiArray = new float[8];
+            for (int i = 0; i < 4; i++) {
+                radiiArray[i*2] = radii[i];
+                radiiArray[i*2+1] = radii[i];
             }
-        }
-        if (imageReceiver.getImageKey() != null) {
-            Log.d("KEY", imageReceiver.getImageKey());
-        }
-        if (imageReceiver.getThumbKey() != null) {
-            Log.d("KEYF", imageReceiver.getThumbKey());
-        }
-        Log.d("SIZE", imageReceiver.getSize() + "");
+            clipPath.addRoundRect(rect, radiiArray, Path.Direction.CW);
+            canvas.save();
+            canvas.clipPath(clipPath);
 
-
+            Matrix matrix = new Matrix();
+            matrix.setScale((float) getWidth() / placeholder.getWidth(),
+                    (float) getHeight() / placeholder.getHeight());
+            canvas.drawBitmap(placeholder, matrix, new Paint());
+            canvas.restore();
+        } else {
+            super.onDraw(canvas);
+        }
     }
 
-    public void update(MessageObject object) {
+    public void update(Track object) {
         this.messageObject = object;
     }
 
-    public void register() {
-        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.messagePlayingDidReset);
-        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
-        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.messagePlayingDidStart);
-        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.fileLoaded);
-        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.fileLoadProgressChanged);
-        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.musicDidLoad);
-        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.moreMusicDidLoad);
-        NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.musicIdsLoaded);
-        if (!isMiniCover) {
-            update();
-        }
-    }
-
-    private void unregister() {
-        NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, NotificationCenter.messagePlayingDidReset);
-        NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
-        NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, NotificationCenter.messagePlayingDidStart);
-        NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, NotificationCenter.fileLoaded);
-        NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, NotificationCenter.fileLoadProgressChanged);
-        NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, NotificationCenter.musicDidLoad);
-        NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, NotificationCenter.moreMusicDidLoad);
-        NotificationCenter.getInstance(UserConfig.selectedAccount).removeObserver(this, NotificationCenter.musicIdsLoaded);
-    }
-
     public void setupCover(Cover cover) {
+        // Сразу показываем placeholder до загрузки нового изображения
+        isPlaceholder = true;
+        invalidate();
+
         Log.d("CoverSetup", "=== setupCover called ===");
-        Log.d("CoverSetup", "Initial Cover state: " + cover.toString());
+        Log.d("CoverSetup", "Initial Cover state: " + (cover != null ? cover.toString() : "null"));
+
+        if (cover == null) {
+            return; // placeholder уже показан
+        }
 
         if (cover.getLocation() == null && cover.getUrl() == null && cover.getBitmap() == null && cover.getFile() == null) {
-            Log.w("CoverSetup", "Branch: ALL NULL. Showing placeholder.");
-            showPlaceholder();
+            Log.w("CoverSetup", "Branch: ALL NULL. Placeholder remains.");
             return;
         }
 
         if (cover.getBitmap() != null) {
             Log.d("CoverSetup", "Branch: BITMAP. Loading from Bitmap object.");
-            if (imageReceiver != null) {
-                Log.d("CoverSetup", "Clearing previous image in imageReceiver.");
-                imageReceiver.clearImage();
-            }
             setImageBitmap(cover.getBitmap());
             return;
         }
@@ -228,9 +215,8 @@ public class CoverLayout extends BackupImageView implements NotificationCenter.N
             File coverFile = cover.getFile();
             String path = coverFile.getAbsolutePath();
             Log.d("CoverSetup", "Branch: FILE. Loading from local path: " + path);
-
             ImageLocation imageLocation = ImageLocation.getForPath(path);
-            setImage(imageLocation, null, null, null, path, 512, 1, this);
+            setImage(imageLocation, null, null, null, null, 0, 1, this);
             return;
         }
 
@@ -243,10 +229,36 @@ public class CoverLayout extends BackupImageView implements NotificationCenter.N
         if (cover.getLocation() != null) {
             Log.d("CoverSetup", "Branch: LOCATION. Loading from ImageLocation object.");
             setImage(cover.getLocation(), null, null, null, null, 0, 1, this);
-        } else {
-            Log.w("CoverSetup", "Branch: FALLBACK ELSE. Fell through to the end. Showing placeholder.");
-            showPlaceholder();
+            return;
         }
+
+        Log.w("CoverSetup", "Branch: FALLBACK ELSE. Placeholder remains.");
+    }
+
+    private ImageReceiver.ImageReceiverDelegate getDelegate() {
+        return new ImageReceiver.ImageReceiverDelegate() {
+            @Override
+            public void didSetImage(ImageReceiver imageReceiver, boolean b, boolean b1, boolean b2) {
+                Drawable drawable = imageReceiver.getDrawable();
+                if (drawable != null) {
+                    isPlaceholder = false;
+                    Log.d("CoverSetup", drawable.getBounds().toString());
+                    Log.d("CoverSetup", drawable.getAlpha()+"");
+                    Log.d("CoverSetup", drawable.getConstantState().toString());
+                }
+
+            }
+
+            @Override
+            public void didSetImageBitmap(int i, String s, Drawable drawable) {
+                isPlaceholder = false;
+            }
+
+            @Override
+            public void onAnimationReady(ImageReceiver imageReceiver) {
+
+            }
+        };
     }
 
     private void update() {
@@ -257,23 +269,11 @@ public class CoverLayout extends BackupImageView implements NotificationCenter.N
         Track track = audioElement.getTrack();
 
         if (track == null || track.getCover() == null) {
-            showPlaceholder();
+            this.isPlaceholder = true;
             return;
         }
 
         Cover cover = track.getCover();
         setupCover(cover);
-    }
-
-    @Override
-    public void didReceivedNotification(int i, int i1, Object... objects) {
-        Log.d("NOTIFICATION", i + "");
-        if (!isMiniCover || (NotificationCenter.fileLoaded == i ||
-                NotificationCenter.fileLoadProgressChanged == i ||
-                NotificationCenter.musicDidLoad == i ||
-                NotificationCenter.moreMusicDidLoad == i ||
-                NotificationCenter.musicIdsLoaded == i)) {
-            update();
-        }
     }
 }

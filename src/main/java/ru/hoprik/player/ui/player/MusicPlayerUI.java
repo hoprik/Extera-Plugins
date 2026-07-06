@@ -30,9 +30,9 @@ import ru.hoprik.player.helpers.ControlsHelpers;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MusicPlayerUI extends BaseFragment implements NotificationCenter.NotificationCenterDelegate{
+public class MusicPlayerUI extends BaseFragment implements NotificationCenter.NotificationCenterDelegate {
     PlayerBackgroundView backgroundView;
-    GradientDrawable overlayColor;
+    CoverLayout avatarCover;
     PlaylistContainerView playlistContainerView;
     PrimaryControlsView primaryControlsView;
 
@@ -119,7 +119,8 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
 
         scrollView.setLayoutParams(scrollParams);
 
-        AudioPlayer player = MusicPlayer.getInstance().getAudioPlayer();;
+        AudioPlayer player = MusicPlayer.getInstance().getAudioPlayer();
+        ;
         if (player.getAudioElement() == null) {
             renderError(container, context);
             return fragmentView;
@@ -222,7 +223,7 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
         backgroundView = new PlayerBackgroundView(context);
         container.addView(backgroundView);
 
-        CoverLayout avatarCover = new CoverLayout(context) {
+        avatarCover = new CoverLayout(context) {
             @Override
             protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
                 super.onMeasure(widthMeasureSpec, widthMeasureSpec);
@@ -287,7 +288,7 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
         main_layout.addView(playlistContainerView);
 
         TextView bottomText = new TextView(context);
-        bottomText.setText(LocaleUtils.fullyFormatText("Сделано с ❤️ от @hoprik и fork by @tecxz5 для exteragram"));
+        bottomText.setText(LocaleUtils.fullyFormatText("Made with ❤️ by @hoprik & fork by @nonPlugins for exteragram"));
         bottomText.setTextColor(Theme.getColor(Theme.key_player_actionBarSubtitle));
         bottomText.setTextSize(12);
         bottomText.setGravity(Gravity.CENTER);
@@ -314,7 +315,7 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
 
         scrollView.setOnScrollChangeListener((v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
             Playlist playlist = MusicPlayer.getInstance().getAudioPlayer().getPlaylist();
-            if ((playlist == null || playlist.getElements() == null)){
+            if ((playlist == null || playlist.getElements() == null)) {
                 return;
             }
             if (playlist.getElements().size() >= 5) {
@@ -357,12 +358,13 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
                         final long documentId = object.getDocument().id;
                         boolean isSaved = musicIds.ids.contains(documentId);
 
-                        ControlsHelpers.saveToProfile(object, !isSaved, () -> {}, false, this);
+                        ControlsHelpers.saveToProfile(object, !isSaved, () -> {
+                        }, false, this);
                         if (!isSaved) {
                             BulletinFactory.of(this)
                                     .createSimpleBulletin(R.raw.saved_messages, LocaleController.getString(R.string.AudioSaveToMyProfileSaved))
                                     .show();
-                        }else{
+                        } else {
                             BulletinFactory.of(this)
                                     .createSimpleBulletin(R.raw.ic_delete, LocaleController.getString(R.string.AudioSaveToMyProfileUnsaved))
                                     .show();
@@ -444,8 +446,29 @@ public class MusicPlayerUI extends BaseFragment implements NotificationCenter.No
 
     @Override
     public void didReceivedNotification(int i, int i1, Object... objects) {
-        if (i == NotificationCenter.messagePlayingDidReset){
-
+        if (
+                i == NotificationCenter.messagePlayingDidReset ||
+                        i == NotificationCenter.messagePlayingPlayStateChanged ||
+                        i == NotificationCenter.messagePlayingDidStart ||
+                        i == NotificationCenter.messagePlayingProgressDidChanged ||
+                        i == NotificationCenter.fileLoaded ||
+                        i == NotificationCenter.fileLoadProgressChanged ||
+                        i == NotificationCenter.musicDidLoad ||
+                        i == NotificationCenter.moreMusicDidLoad ||
+                        i == NotificationCenter.musicIdsLoaded ||
+                        i == NotificationCenter.messagePlayingSpeedChanged
+        ) {
+            AudioPlayer player = MusicPlayer.getInstance().getAudioPlayer();
+            if (player == null) {
+                return;
+            }
+            if (avatarCover != null && player.getAudioElement() != null) {
+                if (player.getAudioElement().getTrack() != null) {
+                    Track track = player.getAudioElement().getTrack();
+                    avatarCover.setupCover(track.getCover());
+                    backgroundView.setupBackgroundCover(track.getCover());
+                }
+            }
         }
     }
 

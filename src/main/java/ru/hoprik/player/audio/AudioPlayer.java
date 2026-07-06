@@ -89,6 +89,10 @@ public class AudioPlayer implements NotificationCenter.NotificationCenterDelegat
         return playlist;
     }
 
+    public void loadMoreMusic() {
+        MediaController.getInstance().loadMoreMusic();
+    }
+
     private void load() {
         NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.messagePlayingDidReset);
         NotificationCenter.getInstance(UserConfig.selectedAccount).addObserver(this, NotificationCenter.messagePlayingPlayStateChanged);
@@ -124,6 +128,9 @@ public class AudioPlayer implements NotificationCenter.NotificationCenterDelegat
 
     private void updatePlayingMessage(MessageObject playingMessage) {
         if (playingMessage == null) {
+            return;
+        }
+        if (!playingMessage.isMusic()) {
             return;
         }
         String nameTrack = playingMessage.getMusicTitle();
@@ -227,6 +234,7 @@ public class AudioPlayer implements NotificationCenter.NotificationCenterDelegat
                 i == NotificationCenter.messagePlayingDidReset ||
                 i == NotificationCenter.messagePlayingPlayStateChanged ||
                 i == NotificationCenter.musicDidLoad ||
+                i == NotificationCenter.musicIdsLoaded ||
                 i == NotificationCenter.moreMusicDidLoad) {
 
             updatePlayingMessage();
