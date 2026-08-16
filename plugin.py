@@ -290,15 +290,19 @@ class PlayerPlugin(BasePlugin):
         try:
             MusicPlayer = clazz.getDeclaredMethod("getInstance").invoke(None)
             self.log("MusicPlayer instance created")
-            try:
-                MusicPlayer.load()
-                java_translations = python_dict_to_java_map(localizer.strings)
-                MusicPlayer.setLocalizations(java_translations)
-                self.log("Translations passed successfully")
-            except Exception as e:
-                self.log(f"Warning: Could not pass translations (update DEX?): {e}")
+            run_on_ui_thread(lambda: self._init_music_player())
         except Exception as e:
             self.log(f"FATAL ERROR getting instance: {e}")
+
+    def _init_music_player(self):
+        global MusicPlayer
+        try:
+            MusicPlayer.load()
+            java_translations = python_dict_to_java_map(localizer.strings)
+            MusicPlayer.setLocalizations(java_translations)
+            self.log("Translations passed successfully")
+        except Exception as e:
+            self.log(f"Warning: Could not pass translations (update DEX?): {e}")
 
     # ---------- Settings UI ----------
     def create_settings(self):

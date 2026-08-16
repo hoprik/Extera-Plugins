@@ -28,9 +28,9 @@ public class MusicPlayer {
     private static final MusicPlayer instance = new MusicPlayer();
     private Class<?> lyricsClass;
     private Map<String, Map<String, String>> localizations;
-    private HookRegister register;
-    private AudioPlayer audioPlayer;
-    private GlobalProvider provider;
+    private volatile HookRegister register;
+    private volatile AudioPlayer audioPlayer;
+    private volatile GlobalProvider provider;
 
     public MusicPlayer() {
         ApiClient.getInstance().setSocksProxy("127.0.0.1", 25565);
@@ -48,6 +48,7 @@ public class MusicPlayer {
         } catch (NoSuchMethodException e) {
             Log.e("MusicPlayer", "MusicPlayer HOOK REGISTER ERROR: ", e);
         }
+
     }
 
     public void registerProvides() {
@@ -69,6 +70,7 @@ public class MusicPlayer {
     }
 
     public void destroy() {
+        Log.d("MusicPlayer", "MusicPlayer destroyed");
         if (register != null) {
             register.unregisterHooks();
             register = null;
